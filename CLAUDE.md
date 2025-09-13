@@ -53,6 +53,31 @@ The system uses a dual-queue persistence mechanism:
 - Crash recovery system stores state in `data/` directory
 - Auto-recovery enabled by default with 3 retry attempts
 
+#### Database Recharge Storage Pattern
+
+**CRITICAL**: All recharges must follow the master-detail pattern:
+
+**Master Record** (`recargas` table - GPS_DB):
+- ONE master record per batch of recharges processed together
+- Contains total amount, batch count notation like "[003/003]", and summary data
+- Uses `tipo` field: 'rastreo' (GPS), 'paquete' (VOZ), 'eliot' (ELIoT)
+
+**Detail Records** (`detalle_recargas` table - GPS_DB):  
+- Multiple detail records linked to master via `id_recarga`
+- Each detail represents one individual recharge with specific SIM data
+- Contains webservice response data (folio, saldo final, carrier info)
+
+**Service-Specific Database Updates**:
+- **GPS**: Updates `dispositivos.unix_saldo` in GPS_DB after successful recharge
+- **VOZ**: Updates `prepagos_automaticos.fecha_expira_saldo` in GPS_DB after successful recharge  
+- **ELIoT**: Updates `agentes.fecha_saldo` in ELIOT_DB after successful recharge
+
+**Variable Pricing Support**:
+- All services support variable pricing using `r.importe` or `r.monto` from individual records
+- GPS: Usually fixed but supports variable via `r.importe || this.config.IMPORTE`
+- VOZ: Variable pricing based on package type using `r.monto`
+- ELIoT: Variable pricing using `r.importe` from device configuration
+
 ### Monitoring
 
 The system includes built-in instrumentation (`lib/instrument.js`) and a separate monitoring service (`monitor.js`) for system health tracking.

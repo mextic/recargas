@@ -4,7 +4,7 @@ require("./lib/instrument.js");
 const { initDatabases, dbGps, dbEliot, getRedisClient } = require('./lib/database');
 const { GPSRechargeProcessor } = require('./lib/processors/GPSRechargeProcessor');
 const { VozRechargeProcessor } = require('./lib/processors/VozRechargeProcessor');
-const { IoTRechargeProcessor } = require('./lib/processors/IoTRechargeProcessor');
+const { ELIoTRechargeProcessor } = require('./lib/processors/ELIoTRechargeProcessor');
 const { PersistenceQueueSystem } = require('./lib/concurrency/PersistenceQueueSystem');
 const { OptimizedLockManager } = require('./lib/concurrency/OptimizedLockManager');
 const schedule = require('node-schedule');
@@ -15,7 +15,7 @@ class RechargeOrchestrator {
         this.processors = {
             GPS: null,
             VOZ: null,
-            IOT: null
+            ELIOT: null
         };
         this.persistenceQueue = null;
         this.lockManager = null;
@@ -73,7 +73,7 @@ class RechargeOrchestrator {
             console.log('⚙️ Inicializando procesadores...');
             this.processors.GPS = new GPSRechargeProcessor(dbGps, this.lockManager, this.gpsQueue);
             this.processors.VOZ = new VozRechargeProcessor(dbGps, this.lockManager, this.vozQueue);
-            this.processors.IOT = new IoTRechargeProcessor(dbEliot, this.lockManager, this.eliotQueue);
+            this.processors.ELIOT = new ELIoTRechargeProcessor({GPS_DB: dbGps, ELIOT_DB: dbEliot}, this.lockManager, this.eliotQueue);
             
             // 5. Verificar recuperación ante crash
             console.log('🔍 Verificando estado anterior...');
@@ -91,7 +91,7 @@ class RechargeOrchestrator {
             // 6. Configurar schedules
             this.setupSchedules();
             
-            // 7. TESTING: Ejecutar VOZ inmediatamente para debugging (solo en desarrollo)
+            // 7. TESTING: Ejecutar servicios inmediatamente para debugging (solo en desarrollo)
             if (process.env.NODE_ENV === 'development' && process.env.TEST_VOZ === 'true') {
                 console.log('\n🧪 TESTING: Ejecutando VOZ inmediatamente...');
                 setTimeout(() => {
@@ -99,6 +99,15 @@ class RechargeOrchestrator {
                         console.error('❌ Error en test VOZ:', error);
                     });
                 }, 2000); // 2 segundos después de inicializar
+            }
+            
+            if (process.env.TEST_ELIOT === 'true') {
+                console.log('\n🧪 TESTING: Ejecutando ELIoT inmediatamente...');
+                setTimeout(() => {
+                    this.runProcess('ELIOT').catch(error => {
+                        console.error('❌ Error en test ELIoT:', error);
+                    });
+                }, 3000); // 3 segundos después de inicializar (para no interferir con VOZ)
             }
             
             this.isInitialized = true;
@@ -150,18 +159,17 @@ class RechargeOrchestrator {
             await this.runProcess('VOZ');
         }));
         
-        // IOT - Cada 30 minutos
-        const iotRule = new schedule.RecurrenceRule();
-        iotRule.minute = [0, 30];
-        iotRule.tz = "America/Mazatlan";
+        // ELIOT - Intervalo configurable basado en ELIOT_MINUTOS_SIN_REPORTAR
+        const eliotInterval = parseInt(process.env.ELIOT_MINUTOS_SIN_REPORTAR) || 10;
+        console.log(`   🔄 ELIoT verificará cada ${eliotInterval} minutos (ELIOT_MINUTOS_SIN_REPORTAR=${eliotInterval})`);
         
-        this.schedules.set('IOT', schedule.scheduleJob(iotRule, async () => {
-            await this.runProcess('IOT');
+        this.schedules.set('ELIOT', schedule.scheduleJob(`*/${eliotInterval} * * * *`, async () => {
+            await this.runProcess('ELIOT');
         }));
         
         console.log(`   • GPS: Cada ${gpsInterval} minutos`);
         console.log('   • VOZ: 2 veces al día (1:00 AM y 4:00 AM)');
-        console.log('   • IOT: Cada 30 minutos');
+        console.log(`   • ELIOT: Cada ${eliotInterval} minutos`);
     }
 
     async runProcess(type) {

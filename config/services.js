@@ -74,18 +74,22 @@ module.exports = {
         }
     },
     
-    IOT: {
+    ELIOT: {
         // ===== CONFIGURACIÓN PLACEHOLDER =====
-        // Configuración para futura implementación de IoT/ELIOT
+        // Configuración para implementación completa de ELIoT
         
         DELAY_BETWEEN_CALLS: 500,       // Unificado con GPS/VOZ
         RETRY_STRATEGY: 'exponential',   // Unificado con GPS/VOZ
         RETRY_BASE_DELAY: 1000,         // Unificado con GPS/VOZ
         MAX_RETRIES: 3,                 // Unificado con GPS/VOZ
         
-        // ===== SCHEDULING IOT =====
-        SCHEDULE_TYPE: 'cron',          // Tipo: cron
-        SCHEDULE_MINUTES: [0, 30],      // Cada 30 minutos (:00, :30)
+        // ===== SCHEDULING ELIoT =====
+        SCHEDULE_TYPE: 'interval',      // Cambiar a interval como GPS
+        SCHEDULE_MINUTES: parseInt(process.env.ELIOT_MINUTOS_SIN_REPORTAR) || 10, // Usar variable de entorno
+        
+        // ===== CRITERIOS FILTRADO ELIoT =====
+        DIAS_SIN_REPORTAR_LIMITE: parseInt(process.env.ELIOT_DIAS_SIN_REPORTAR) || 20,         // Para query: 20 días  
+        MINUTOS_SIN_REPORTAR_PARA_RECARGA: parseInt(process.env.ELIOT_MINUTOS_SIN_REPORTAR) || 10, // Para recarga: 10 min
         
         // ===== LÍMITES =====
         MIN_BALANCE_THRESHOLD: 50,      // Placeholder: $50
@@ -96,7 +100,7 @@ module.exports = {
         USE_ANIMATIONS: true,           // Con animaciones
         
         // ===== ESTADO =====
-        IMPLEMENTED: false,             // NO implementado aún
+        IMPLEMENTED: true,              // ✅ IMPLEMENTADO con flujo completo
         
         // ===== TIMEOUTS =====
         LOCK_TIMEOUT: 3600,            // Lock timeout: 1 hora
