@@ -32,6 +32,10 @@ class RechargeOrchestrator {
             console.log('📊 Conectando bases de datos...');
             await initDatabases();
             
+            // Guardar referencia a bases de datos en la clase
+            this.dbGps = dbGps;
+            this.dbEliot = dbEliot;
+            
             // 2. Inicializar sistema de persistencia
             console.log('💾 Inicializando sistema de persistencia...');
             // Cada servicio necesita su propia instancia de persistencia
@@ -244,8 +248,9 @@ class RechargeOrchestrator {
                 (process_type, start_time, end_time, records_failed, error_message)
                 VALUES (?, NOW(), NOW(), 1, ?)
             `;
-            await dbGps.querySequelize(sql, {
-                replacements: [type, error.message]
+            await this.dbGps.querySequelize(sql, {
+                replacements: [type, error.message],
+                type: this.dbGps.getSequelizeClient().QueryTypes.INSERT
             });
         } catch (e) {
             console.error('Error guardando métrica:', e.message);
