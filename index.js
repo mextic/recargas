@@ -87,8 +87,8 @@ class RechargeOrchestrator {
             // 6. Configurar schedules
             this.setupSchedules();
             
-            // 7. TESTING: Ejecutar VOZ inmediatamente para debugging
-            if (process.env.NODE_ENV === 'development' || process.env.TEST_VOZ === 'true') {
+            // 7. TESTING: Ejecutar VOZ inmediatamente para debugging (solo en desarrollo)
+            if (process.env.NODE_ENV === 'development' && process.env.TEST_VOZ === 'true') {
                 console.log('\n🧪 TESTING: Ejecutando VOZ inmediatamente...');
                 setTimeout(() => {
                     this.runProcess('VOZ').catch(error => {
@@ -155,8 +155,8 @@ class RechargeOrchestrator {
             await this.runProcess('IOT');
         }));
         
-        console.log('   • GPS: Cada 15 minutos');
-        console.log('   • VOZ: Diario 6:00 AM');
+        console.log(`   • GPS: Cada ${gpsInterval} minutos`);
+        console.log('   • VOZ: 2 veces al día (1:00 AM y 4:00 AM)');
         console.log('   • IOT: Cada 30 minutos');
     }
 
