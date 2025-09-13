@@ -78,6 +78,44 @@ The system uses a dual-queue persistence mechanism:
 - VOZ: Variable pricing based on package type using `r.monto`
 - ELIoT: Variable pricing using `r.importe` from device configuration
 
+## Recent Major Changes (Session 2025-09-13)
+
+### ✅ Batch Processing Implementation (Critical Fix)
+**Problem**: All services were creating 1:1 records (one master per recharge) instead of proper 1:N structure.
+
+**Solution**: Implemented `insertBatchRecharges()` method in all processors:
+- **GPS**: `lib/processors/GPSRechargeProcessor.js` - Master record with `[002/002]` notation + linked details
+- **ELIoT**: `lib/processors/ELIoTRechargeProcessor.js` - Same pattern for IoT devices  
+- **VOZ**: `lib/processors/VozRechargeProcessor.js` - Added batch processing for voice packages
+- **Recovery**: `lib/processors/BaseRechargeProcessor.js` - Recovery operations now use batch processing when available
+
+### ✅ MongoDB Metrics Integration for ELIoT
+**Implementation**: Created complete MongoDB integration for ELIoT device filtering:
+- **Model**: `lib/models/Metrica.js` - Schema with automatic indexing (uuid_1_fecha_-1, fecha_-1)
+- **Client**: `lib/database/mongoClient.js` - MongoDB connection management
+- **Function**: `consultarMetricaPorUuid()` - Retrieves latest device metrics
+- **Filtering Logic**: Only recharge devices with 10+ minutes without reporting (configurable)
+- **Environment Variables**: `ELIOT_DIAS_SIN_REPORTAR=14`, `ELIOT_MINUTOS_SIN_REPORTAR=10`
+
+### ✅ Dynamic Scheduling Configuration
+**Change**: ELIoT now uses same pattern as GPS for consistent scheduling:
+- **Before**: Fixed 30-minute intervals
+- **After**: Configurable `ELIOT_MINUTOS_SIN_REPORTAR=10` minute intervals
+- **Consistency**: Both filtering criteria and execution frequency use same environment variable
+
+### ⚠️ Testing Notes for Future Sessions
+1. **Batch Processing Verification**: Check that recovery operations create single master records with multiple details
+2. **MongoDB Metrics**: Verify ELIoT filtering works correctly with actual device data
+3. **Variable Pricing**: Ensure all services handle `r.importe`/`r.monto` correctly instead of fixed amounts
+4. **Scheduling**: Confirm ELIoT runs every 10 minutes as configured
+
+### 🔧 Environment Variables Added
+```bash
+# ELIoT Configuration
+ELIOT_DIAS_SIN_REPORTAR=14      # Maximum days to consider for query
+ELIOT_MINUTOS_SIN_REPORTAR=10   # Minimum minutes without reporting to trigger recharge
+```
+
 ### Monitoring
 
 The system includes built-in instrumentation (`lib/instrument.js`) and a separate monitoring service (`monitor.js`) for system health tracking.
