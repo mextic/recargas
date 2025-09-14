@@ -5,7 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "node tests/integration.test.js",
+    "test": "jest --verbose",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --testMatch='**/tests/integration/**/*.test.js'",
+    "test:unit": "jest --testMatch='**/tests/unit/**/*.test.js'",
+    "test:legacy": "node tests/integration.test.js",
     "setup": "node scripts/setup.js",
     "monitor": "node monitor.js"
   },
@@ -21,6 +26,27 @@
     "xml2js": "^0.6.2",
     "mongoose": "^7.6.0",
     "underscore": "^1.13.6",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "@jest/globals": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "lib/**/*.js",
+      "index.js",
+      "!lib/**/*.backup.js",
+      "!node_modules/**"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov", "html"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"]
   }
 }
