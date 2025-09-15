@@ -1,299 +1,741 @@
 # Sistema de Recargas Optimizado v2.0
 
-Sistema automatizado de recargas para servicios GPS, VOZ e IoT con arquitectura de colas distribuidas por tipo de servicio y recuperación ante fallos.
+Sistema automatizado de recargas para servicios GPS, VOZ e IoT con arquitectura empresarial, analíticas avanzadas y manejo inteligente de errores.
 
-## 🚀 Características
+## 🚀 Características Principales
 
-- **Multi-Servicio**: Soporte para GPS, VOZ (Voz) e IoT con procesadores especializados
-- **Colas Separadas por Servicio**: Sistema de persistencia con colas independientes (GPS, VOZ, ELIOT)
-- **Recovery Estricto**: No consume webservices si hay registros pendientes sin procesar
+- **Multi-Servicio Empresarial**: GPS, VOZ (Voz) e IoT con procesadores especializados
+- **Sistema de Analíticas Avanzadas**: Dashboard empresarial con métricas por períodos 
+- **Manejo Inteligente de Errores**: Categorización automática con estrategias de retry
 - **Distributed Locking**: Prevención de ejecuciones concurrentes con Redis
-- **Scheduling Inteligente**: Intervalos optimizados por tipo de servicio
-- **Crash Recovery**: Recuperación automática ante fallos del sistema
+- **Scheduling Optimizado**: Horarios exactos con RecurrenceRule para predictibilidad
+- **Crash Recovery**: Recuperación automática ante fallos con colas auxiliares
+- **Progress Tracking**: Barras de progreso en tiempo real optimizadas
+- **PM2 Integration**: Gestión profesional de procesos con configuración completa
 
-## 📋 Requisitos
+## 📋 Requisitos del Sistema
 
-- Node.js 14+
-- MySQL/MariaDB (GPS_DB, ELIOT_DB)
-- Redis (para locks distribuidos)
-- Acceso a APIs: TAECEL y MST
+- **Node.js** 14+ (recomendado 16+)
+- **MySQL/MariaDB** (GPS_DB, ELIOT_DB)
+- **Redis** (para locks distribuidos y cache)
+- **MongoDB** (para métricas avanzadas)
+- **PM2** (recomendado para producción)
+- **Acceso APIs**: TAECEL y MST
 
-## 🛠 Instalación
+## 🛠 Instalación Rápida
 
 ```bash
+# Clonar repositorio
+git clone git@github.com:mextic/recargas.git
+cd recargas-optimizado
+
+# Instalar dependencias
 npm install
+
+# Configurar variables de entorno
 cp .env.example .env
-# Configurar variables en .env
+# Editar .env con tus credenciales reales
+
+# Iniciar en desarrollo
 npm start
+
+# O iniciar con PM2 (producción)
+npm run pm2:start
 ```
 
-## ⚙️ Configuración
+## ⚙️ Configuración de Variables de Entorno
 
-### Variables de Entorno Requeridas
-
+### Variables Requeridas (Críticas)
 ```bash
-# Bases de Datos
-GPS_DB_PASSWORD=tu_password_gps
-ELIOT_DB_PASSWORD=tu_password_eliot
+# === BASES DE DATOS ===
+GPS_DB_PASSWORD=tu_password_gps_seguro
+ELIOT_DB_PASSWORD=tu_password_eliot_seguro
 
-# Proveedores de Recarga
-TAECEL_KEY=tu_taecel_key
-TAECEL_NIP=tu_taecel_nip
-MST_USER=tu_mst_user
-MST_PASSWORD=tu_mst_password
+# === PROVEEDORES DE RECARGA ===
+TAECEL_KEY=tu_taecel_key_production
+TAECEL_NIP=tu_taecel_nip_seguro
+MST_USER=tu_mst_usuario
+MST_PASSWORD=tu_mst_password_seguro
 ```
 
-### Variables Opcionales
-
+### Variables de Configuración (Opcionales)
 ```bash
-GPS_MINUTOS_SIN_REPORTAR=10     # Umbral para recargas GPS (default: 10)
-LOCK_EXPIRATION_MINUTES=60      # Expiración de locks (default: 60)
-NODE_ENV=development            # Entorno de ejecución
-TEST_VOZ=true                   # Testing inmediato de VOZ
+# === INTERVALOS DE EJECUCIÓN ===
+GPS_MINUTOS_SIN_REPORTAR=10      # Intervalo GPS (recomendado: 6-15 min)
+ELIOT_MINUTOS_SIN_REPORTAR=10    # Intervalo ELIoT (recomendado: 10-30 min)
+VOZ_SCHEDULE_MODE=fixed          # VOZ: 'fixed' o 'interval'
+VOZ_MINUTOS_SIN_REPORTAR=60      # Solo si VOZ_SCHEDULE_MODE=interval
+
+# === SISTEMA ===
+NODE_ENV=production              # Entorno: development/production
+LOCK_EXPIRATION_MINUTES=60       # Expiración de locks distribuidos
+
+# === TESTING (solo desarrollo) ===
+TEST_VOZ=false                   # Testing inmediato VOZ
+TEST_ELIOT=false                 # Testing inmediato ELIoT
 ```
 
 ## 🔧 Comandos Disponibles
 
+### Gestión del Sistema
 ```bash
-npm start          # Inicia el sistema completo
-npm test           # Ejecuta tests de integración
-npm run setup      # Configuración inicial
-npm run monitor    # Sistema de monitoreo
+# === DESARROLLO ===
+npm start                        # Iniciar en modo desarrollo
+npm run setup                    # Configuración inicial del sistema
+npm test                         # Ejecutar suite completa de tests
+npm run monitor                  # Monitor básico del sistema
+
+# === PM2 PRODUCCIÓN ===
+npm run pm2:start                # Iniciar con PM2 (proceso: "recargas")
+npm run pm2:stop                 # Detener proceso PM2
+npm run pm2:restart              # Reiniciar proceso PM2
+npm run pm2:reload               # Reload sin downtime
+npm run pm2:delete               # Eliminar proceso PM2
+npm run pm2:status               # Estado del proceso "recargas"
+npm run pm2:logs                 # Ver logs en tiempo real
+npm run pm2:monitor              # Dashboard visual PM2
+
+# === ANALÍTICAS EMPRESARIALES ===
+npm run analytics                # Dashboard empresarial completo
+npm run analytics:single         # Análisis único (no loop)
+npm run analytics:export         # Exportar métricas
+npm run analytics:demo           # Demo con datos simulados
 ```
 
-## 🏗 Arquitectura
+### Testing Especializado
+```bash
+# === TESTS UNITARIOS E INTEGRACIÓN ===
+npm run test:unit                # Tests unitarios únicamente
+npm run test:integration         # Tests de integración únicamente  
+npm run test:watch               # Tests en modo watch
+npm run test:coverage            # Cobertura de tests
+npm run test:legacy              # Tests legacy del sistema anterior
+```
+
+## 🏗 Arquitectura Empresarial
 
 ### Componentes Principales
 
 #### 1. RechargeOrchestrator (`index.js`)
-Coordinador principal que:
-- Inicializa todos los procesadores
-- Gestiona scheduling automático
-- Maneja recovery ante crashes
-- Coordina locks distribuidos
+**Coordinador central empresarial que:**
+- Inicializa todos los procesadores con error handling
+- Gestiona scheduling con horarios exactos (RecurrenceRule)
+- Maneja recovery automático ante crashes
+- Coordina locks distribuidos por servicio
+- Monitorea estado del sistema en tiempo real
 
-#### 2. Procesadores Especializados
+#### 2. Procesadores Especializados por Servicio
 
-**GPSRechargeProcessor**
-- Recargas fijas: $10, 8 días
-- Intervalo: Cada 10 minutos (configurable con GPS_MINUTOS_SIN_REPORTAR)
-- Filtrado inteligente por tiempo sin reportar
+**GPSRechargeProcessor** (`lib/processors/GPSRechargeProcessor.js`)
+- **Recargas**: $10 fijos, 8 días de vigencia
+- **Scheduling**: Cada 6-15 minutos (configurable con GPS_MINUTOS_SIN_REPORTAR)
+- **Filtrado inteligente**: Por tiempo sin reportar y vencimientos
+- **Providers**: TAECEL (primario), MST (respaldo)
 
-**VozRechargeProcessor** 
-- Paquetes variables según código
-- Frecuencia: 2 veces al día (1:00 AM, 4:00 AM)
-- Soporte TAECEL y MST con reintentos
+**VozRechargeProcessor** (`lib/processors/VozRechargeProcessor.js`)
+- **Recargas**: Paquetes variables según código PSL
+- **Scheduling**: 2 modos configurables:
+  - **Fixed** (default): 1:00 AM y 4:00 AM diarios
+  - **Interval**: Cada N minutos (configurable)
+- **Providers**: TAECEL y MST con balanceador automático
 
-**IoTRechargeProcessor**
-- Recargas para dispositivos IoT
-- Intervalo: Cada 30 minutos
+**ELIoTRechargeProcessor** (`lib/processors/ELIoTRechargeProcessor.js`)
+- **Recargas**: Dispositivos IoT con métricas MongoDB
+- **Scheduling**: Cada 10-30 minutos con RecurrenceRule
+- **Filtering**: Métricas avanzadas con MongoDB para evitar duplicados
+- **Providers**: TAECEL (primario)
 
-#### 3. Sistema de Persistencia por Servicio
+#### 3. Sistema de Analíticas Empresariales
 
+**AdvancedMonitor** (`lib/analytics/AdvancedMonitor.js`)
+```javascript
+// Períodos de análisis profesional
+- Semanal: 4 semanas de análisis
+- Mensual: 6 meses de tendencias  
+- Semestral: 2 años de datos históricos
 ```
+
+**Métricas Profesionales por Servicio:**
+- **Operacionales**: Volumen, tasa éxito, tiempo promedio
+- **Financieras**: Revenue, gasto promedio, margen
+- **Rendimiento**: Dispositivos activos, crecimiento
+- **Tendencias**: Crecimiento semanal/mensual, estacionalidad
+
+**DashboardRenderer** (`lib/analytics/DashboardRenderer.js`)
+- Dashboard ejecutivo con KPIs principales
+- Visualización de tendencias y crecimiento
+- Alertas automáticas de rendimiento
+- Comparativas inter-servicios
+
+#### 4. Sistema de Manejo Inteligente de Errores
+
+**ErrorHandler** (`lib/utils/errorHandler.js`)
+```javascript
+// Categorías de errores automáticas:
+RETRIABLE    // balance insuficiente, timeout, network → reintentos
+FATAL        // conexión BD, configuración → sin reintentos
+BUSINESS     // SIM inválido, servicio no disponible → cuarentena
+```
+
+**Estrategias de Retry Inteligentes:**
+- **Exponential backoff** con jitter para RETRIABLE
+- **Fixed delay** para BUSINESS errors  
+- **Circuit breaker** para FATAL errors
+- **Provider alternativo** automático para RETRIABLE
+
+#### 5. Concurrencia y Locks Distribuidos
+
+**OptimizedLockManager** (`lib/concurrency/OptimizedLockManager.js`)
+- Locks Redis por servicio independiente
+- Auto-liberación por timeout configurable
+- Cleanup automático de locks expirados
+- Prevención de deadlocks
+
+**PersistenceQueueSystem** (`lib/concurrency/PersistenceQueueSystem.js`)
+```javascript
+// Colas separadas por servicio
 data/
-├── gps_auxiliary_queue.json    # Cola de recovery GPS
-├── voz_auxiliary_queue.json    # Cola de recovery VOZ
-└── eliot_auxiliary_queue.json  # Cola de recovery ELIOT
+├── gps_auxiliary_queue.json      # Recargas GPS pendientes
+├── voz_auxiliary_queue.json      # Recargas VOZ pendientes  
+└── eliot_auxiliary_queue.json    # Recargas ELIoT pendientes
 ```
 
-**Cada servicio maneja su propia cola auxiliar independiente:**
-- GPS: Registros de recargas GPS fallidas
-- VOZ: Registros de recargas VOZ fallidas  
-- ELIOT: Registros de recargas ELIOT fallidas
+#### 6. Progress Tracking Optimizado
 
-#### 4. Concurrencia y Locks
+**ProgressFactory** (`lib/utils/progressBar.js`)
+- Barras de progreso en tiempo real por servicio
+- Indicadores visuales: 🔍 Procesando, ✅ Éxito, ❌ Error
+- Throttling optimizado (200ms) para performance
+- ETA calculado dinámicamente
 
-**OptimizedLockManager**
-- Locks distribuidos con Redis
-- Prevención de ejecuciones concurrentes
-- Auto-liberación por timeout
+## 🔄 Flujos de Operación Empresarial
 
-**PersistenceQueueSystem**
-- Colas separadas por servicio (serviceType: 'gps', 'voz', 'eliot')
-- Auto-recovery en caso de crash
-- Reintentos configurables
-
-## 🔄 Flujo de Operación
-
-### 1. Proceso Normal por Servicio
-```
-1. Adquirir lock distribuido (por servicio)
-2. Procesar cola auxiliar específica del servicio (si existe)
-3. Si recovery falla → DETENER (no webservices para ese servicio)
-4. Si recovery exitoso → Continuar con nuevos registros
-5. Consultar saldo de proveedores
-6. Ejecutar recargas via webservice
-7. Guardar en cola auxiliar del servicio
-8. Insertar en base de datos correspondiente
-9. Actualizar fechas de expiración
-10. Limpiar registros exitosos de la cola del servicio
-11. Liberar lock
+### 1. Proceso Normal Optimizado por Servicio
+```mermaid
+graph TD
+    A[Inicio Scheduled] --> B[Adquirir Lock Distribuido]
+    B --> C[Verificar Cola Auxiliar]
+    C --> D{¿Hay Pendientes?}
+    D -->|Sí| E[Procesar Recovery]
+    D -->|No| F[Continuar Proceso]
+    E --> G{¿Recovery OK?}
+    G -->|No| H[DETENER - No Webservices]
+    G -->|Sí| F
+    F --> I[Consultar Saldo Providers]
+    I --> J[Ejecutar Recargas + Progress]
+    J --> K[Guardar en Cola Auxiliar]
+    K --> L[Insertar en BD]
+    L --> M[Limpiar Cola]
+    M --> N[Liberar Lock]
 ```
 
-### 2. Recovery ante Fallos por Servicio
+### 2. Recovery Inteligente ante Fallos
+```javascript
+// Sistema de recovery estricto por servicio
+1. Detectar registros pendientes por servicio al inicio
+2. Intentar procesar cola auxiliar específica (GPS/VOZ/ELIoT)
+3. Aplicar estrategias de error handling automáticas
+4. Si TODOS exitosos → Continuar operación normal
+5. Si ALGUNO falla → BLOQUEAR webservices nuevos para ESE servicio
+6. Mantener aislamiento: fallos de un servicio no afectan otros
 ```
-1. Sistema detecta registros pendientes por servicio al inicio
-2. Intenta procesar cola auxiliar específica (GPS/VOZ/ELIOT)
-3. Si TODOS exitosos → Continúa operación normal para ese servicio
-4. Si ALGUNO falla → NO consume webservices nuevos para ese servicio
-5. Mantiene registros fallidos en cola específica para siguiente intento
+
+## 📊 Scheduling Empresarial Optimizado
+
+| Servicio | Tipo | Frecuencia | Horarios | Comportamiento |
+|----------|------|------------|----------|----------------|
+| **GPS** | RecurrenceRule | Configurable | HH:00, HH:06, HH:12... | Horarios exactos predictibles |
+| **VOZ** | Dual Mode | Fixed/Interval | 1:00 AM, 4:00 AM | Horarios estratégicos baja actividad |
+| **ELIoT** | RecurrenceRule | Configurable | HH:00, HH:10, HH:20... | Sincronización con round times |
+
+### Configuración de Scheduling
+```bash
+# GPS - Intervalo predictible
+GPS_MINUTOS_SIN_REPORTAR=10  # → 20:00, 20:10, 20:20, 20:30...
+
+# ELIoT - Round times exactos  
+ELIOT_MINUTOS_SIN_REPORTAR=15  # → 20:00, 20:15, 20:30, 20:45...
+
+# VOZ - Modo dual
+VOZ_SCHEDULE_MODE=fixed        # → 1:00 AM, 4:00 AM (default)
+VOZ_SCHEDULE_MODE=interval     # → Cada VOZ_MINUTOS_SIN_REPORTAR
 ```
 
-## 📊 Scheduling
+## 🛡 Política de Recovery Empresarial
 
-| Servicio | Frecuencia | Horarios | Variable Control |
-|----------|------------|----------|------------------|
-| GPS | Cada 10 min | Continuo | GPS_MINUTOS_SIN_REPORTAR |
-| VOZ | 2 veces/día | 1:00 AM, 4:00 AM | - |
-| IoT | Cada 30 min | :00, :30 | - |
+### Enfoque ALL-or-NOTHING por Servicio
+- **Isolation**: Cada servicio (GPS/VOZ/ELIoT) es completamente independiente
+- **Integrity**: Garantía de consistencia entre webservice y BD por servicio
+- **Blocking Inteligente**: Si recovery falla, SOLO ese servicio se bloquea
+- **Auto-Recovery**: Reintentos automáticos en próximas ejecuciones
 
-## 🛡 Política de Recovery por Servicio
-
-### Enfoque Estricto por Cola
-- **ALL or NOTHING por Servicio**: Todos los registros en cola específica deben procesarse exitosamente
-- **Blocking por Servicio**: Si hay fallas en recovery de un servicio, no se procesan registros nuevos de ESE servicio
-- **Isolation**: Los fallos de un servicio no afectan a otros servicios
-- **Integrity**: Garantiza consistencia entre webservice y base de datos por servicio
-
-### Estados de Cola por Servicio
+### Estados de Cola Profesionales
 ```javascript
 "webservice_success_pending_db"           // Webservice OK, pendiente BD
-"db_insertion_failed_pending_recovery"    // Fallo BD, pendiente recovery
+"db_insertion_failed_pending_recovery"    // Fallo BD, requiere recovery
+"quarantined_business_error"               // Error de negocio, cuarentena
+"retry_exhausted_manual_review"            // Reintentos agotados, revisión manual
 ```
 
-### Arquitectura de Colas Separadas
-```javascript
-// GPS usa su propia cola
-this.gpsQueue = new PersistenceQueueSystem({
-    serviceType: 'gps'
-});
-
-// VOZ usa su propia cola
-this.vozQueue = new PersistenceQueueSystem({
-    serviceType: 'voz'
-});
-
-// ELIOT usa su propia cola
-this.eliotQueue = new PersistenceQueueSystem({
-    serviceType: 'eliot'
-});
-```
-
-## 📁 Estructura del Proyecto
+## 📁 Estructura Empresarial del Proyecto
 
 ```
 recargas-optimizado/
-├── index.js                    # Orchestrator principal
+├── index.js                           # Orchestrator principal
+├── ecosystem.config.js                # Configuración PM2 profesional
+├── package.json                       # Scripts npm empresariales
+├── 
 ├── lib/
-│   ├── processors/             # Procesadores por servicio
-│   │   ├── GPSRechargeProcessor.js
-│   │   ├── VozRechargeProcessor.js
-│   │   ├── IoTRechargeProcessor.js
-│   │   └── recovery_methods.js
-│   ├── concurrency/            # Sistema de concurrencia
-│   │   ├── OptimizedLockManager.js
-│   │   └── PersistenceQueueSystem.js
-│   ├── database/               # Gestión de BD
-│   │   └── index.js
-│   └── instrument.js           # Instrumentación
+│   ├── processors/                     # Procesadores especializados
+│   │   ├── BaseRechargeProcessor.js    # Clase base con error handling
+│   │   ├── GPSRechargeProcessor.js     # Procesador GPS optimizado
+│   │   ├── VozRechargeProcessor.js     # Procesador VOZ empresarial
+│   │   ├── ELIoTRechargeProcessor.js   # Procesador IoT con MongoDB
+│   │   └── recovery_methods.js         # Métodos de recuperación
+│   ├── analytics/                      # Sistema de analíticas empresarial
+│   │   ├── AdvancedMonitor.js          # Monitor empresarial avanzado
+│   │   └── DashboardRenderer.js        # Renderizado dashboard profesional
+│   ├── concurrency/                    # Sistema de concurrencia distribuida
+│   │   ├── OptimizedLockManager.js     # Locks Redis optimizados
+│   │   └── PersistenceQueueSystem.js   # Colas por servicio
+│   ├── database/                       # Gestión multi-BD
+│   │   └── index.js                    # Conexiones MySQL, Redis, MongoDB
+│   ├── utils/                          # Utilidades empresariales
+│   │   ├── errorHandler.js             # Manejo inteligente de errores
+│   │   ├── logger.js                   # Sistema de logging estructurado
+│   │   └── progressBar.js              # Progress tracking optimizado
+│   ├── webservices/                    # Clientes de APIs unificados
+│   │   └── WebserviceClient.js         # Cliente TAECEL/MST centralizado
+│   └── instrument.js                   # Instrumentación del sistema
+├── 
 ├── config/
-│   └── database.js             # Configuración BD
-├── data/                       # Colas de persistencia separadas
-├── docs/                       # Documentación técnica
-└── tests/                      # Tests de integración
+│   └── database.js                     # Configuración centralizada BD
+├── 
+├── data/                               # Colas de persistencia por servicio
+│   ├── gps_auxiliary_queue.json        # Cola recovery GPS
+│   ├── voz_auxiliary_queue.json        # Cola recovery VOZ
+│   └── eliot_auxiliary_queue.json      # Cola recovery ELIoT
+├── 
+├── logs/                               # Logs PM2 estructurados
+│   ├── recargas.log                    # Log combinado
+│   ├── recargas-out.log                # Stdout únicamente
+│   └── recargas-error.log              # Errores únicamente
+├── 
+├── tests/                              # Suite completa de testing
+│   ├── unit/                           # Tests unitarios especializados
+│   └── integration/                    # Tests de integración empresarial
+├── 
+├── docs/                               # Documentación técnica
+└── monitor-advanced.js                 # Dashboard analíticas tiempo real
 ```
 
-## 🔍 Monitoreo
+## 🔍 Monitoreo y Observabilidad
 
-### Logs del Sistema
+### Logs Estructurados del Sistema
 ```bash
 🚀 Iniciando Sistema de Recargas Optimizado v2.0
 📊 Conectando bases de datos...
+   ✅ GPS DB conectada
+   ✅ ELIoT DB conectada  
+   ✅ Redis conectado
+   ✅ MongoDB métricas conectado
 💾 Inicializando sistema de persistencia...
 🔒 Inicializando gestor de locks...
 ⚙️ Inicializando procesadores...
 🔍 Verificando estado anterior...
 ⚠️ Detectadas X recargas pendientes (GPS: X, VOZ: X, ELIOT: X)
+📅 Configurando tareas programadas...
+   🔄 GPS verificará cada 10 minutos
+   📞 VOZ verificará 2 veces al día: 1:00 AM y 4:00 AM  
+   🔄 ELIoT verificará cada 10 minutos
+✅ Sistema inicializado correctamente
 ```
 
-### Métricas Automáticas por Servicio
-- Registros procesados por servicio
-- Tasa de éxito/fallo por cola
-- Tiempos de ejecución por procesador
-- Estado de colas auxiliares separadas
-- Balance de proveedores
+### 📊 Sistema de Analíticas - Guía Práctica
 
-## 🚨 Troubleshooting
+El sistema incluye 3 niveles de monitoreo y analíticas:
 
-### Problemas Comunes
-
-**1. Recovery no procesa registros de un servicio**
+#### 1. **Monitor Básico** (Tiempo Real)
 ```bash
-# Verificar colas auxiliares específicas
-ls -la data/gps_auxiliary_queue.json
-ls -la data/voz_auxiliary_queue.json
-ls -la data/eliot_auxiliary_queue.json
-# Verificar estructura de datos en archivos JSON
+npm run monitor
+# Muestra: Estado en vivo del sistema, colas, locks, próximas ejecuciones
+# Uso: Verificación rápida del estado operacional
 ```
 
-**2. Lock no se puede adquirir para un servicio**
+#### 2. **Analíticas Empresariales** (Dashboard Completo)
 ```bash
-# Verificar Redis
-redis-cli ping
-# Revisar locks activos por servicio
+npm run analytics
+# Dashboard empresarial con refresh cada 30 segundos
+# Incluye: KPIs, tendencias, gráficos, alertas automáticas
 ```
 
-**3. Un servicio bloquea a otros**
+**¿Qué verás al ejecutar `npm run analytics`?**
+```
+============= SISTEMA DE RECARGAS - DASHBOARD EMPRESARIAL =============
+
+📊 RESUMEN EJECUTIVO:
+├── Total Revenue (Últimos 30 días): $X,XXX
+├── Dispositivos Activos: XXX
+├── Tasa de Éxito Global: XX.X%
+└── Crecimiento vs Mes Anterior: +X.X%
+
+📈 ANÁLISIS POR PERÍODOS:
+┌─────────────────────────────────────────────────────────────┐
+│                    ANÁLISIS SEMANAL (4 Semanas)            │
+├─────────────────────────────────────────────────────────────┤
+│ Semana 1: XXX recargas | $X,XXX revenue | XX% crecimiento  │
+│ Semana 2: XXX recargas | $X,XXX revenue | XX% crecimiento  │
+│ Semana 3: XXX recargas | $X,XXX revenue | XX% crecimiento  │
+│ Semana 4: XXX recargas | $X,XXX revenue | XX% crecimiento  │
+└─────────────────────────────────────────────────────────────┘
+
+🎯 KPIs POR SERVICIO:
+GPS 🟢    │ XXX recargas │ $X,XXX │ XX.X% éxito │ Tendencia: ↗️
+VOZ 🔵    │ XXX recargas │ $X,XXX │ XX.X% éxito │ Tendencia: ↗️  
+ELIoT 🟡  │ XXX recargas │ $X,XXX │ XX.X% éxito │ Tendencia: ↗️
+
+📅 DISTRIBUCIÓN SEMANAL:
+Lunes    ████████████ XX.X%
+Martes   ██████████ XX.X%
+...
+
+🚨 ALERTAS AUTOMÁTICAS:
+[✅] Todos los servicios funcionando normalmente
+[⚠️] GPS: Tasa de éxito por debajo del 95% (solo si aplica)
+```
+
+#### 3. **Monitoreo PM2** (Procesos y Recursos)
 ```bash
-# NO DEBE SUCEDER: Cada servicio es independiente
-# Verificar que cada servicio use su propia cola
+npm run pm2:monitor
+# Dashboard visual de PM2 con CPU, memoria, logs en tiempo real
+# Uso: Monitoreo de recursos del servidor y health del proceso
 ```
 
-## 📋 Variables de Sistema GPS
+### 🔧 Comandos de Analíticas Específicos
 
-| Variable | Descripción | Default |
-|----------|-------------|---------|
-| `GPS_MINUTOS_SIN_REPORTAR` | Umbral y frecuencia | 10 |
-| `GPS_DIAS_SIN_REPORTAR` | Límite para query | 14 |
-| `IMPORTE` | Monto fijo GPS | $10 |
-| `DIAS` | Vigencia GPS | 8 días |
-| `CODIGO` | Producto GPS | TEL010 |
-
-## 🎯 Testing
-
-### Testing VOZ Inmediato
 ```bash
-NODE_ENV=development npm start
-# o
-TEST_VOZ=true npm start
+# === ANÁLISIS ÚNICO (Sin loop) ===
+npm run analytics:single
+# Ejecuta análisis una sola vez y termina
+# Útil para: Reports puntuales, debugging
+
+# === EXPORTAR DATOS ===
+npm run analytics:export  
+# Genera archivos CSV/JSON con métricas
+# Útil para: Reports externos, Excel, análisis offline
+
+# === MODO DEMO ===
+npm run analytics:demo
+# Funciona sin conexión a BD real
+# Útil para: Testing, demostración, desarrollo
 ```
 
-### Testing con Breakpoints
-Configurar breakpoints en:
-- `VozRechargeProcessor.js:51` - Inicio recovery VOZ
-- `GPSRechargeProcessor.js:49` - Inicio recovery GPS
+### 📈 ¿Cómo Interpretar las Métricas?
 
-## 📈 Roadmap
+#### **KPIs Operacionales**
+- **Volume**: Cantidad de recargas procesadas
+- **Success Rate**: % de recargas exitosas (target: >95%)
+- **Avg Response Time**: Tiempo promedio por recarga (target: <2s)
+- **Active Devices**: Dispositivos únicos que recibieron recarga
 
-- [ ] Procesador ELIOT completo
-- [ ] Dashboard web de monitoreo por servicio
-- [ ] APIs REST para control manual por servicio
-- [ ] Métricas avanzadas con MongoDB
-- [ ] Alertas automáticas por Telegram/Email
+#### **KPIs Financieros**  
+- **Revenue**: Ingresos totales generados
+- **Avg Spend**: Gasto promedio por dispositivo
+- **Growth Rate**: Crecimiento vs período anterior
+- **Margin**: Margen de ganancia estimado
 
-## 🤝 Contribución
+#### **KPIs de Rendimiento**
+- **Uptime**: Disponibilidad del sistema (target: >99.9%)
+- **Error Rate**: Tasa de errores (target: <0.1%)
+- **Recovery Time**: Tiempo de recuperación ante fallos
 
-1. Fork del proyecto
-2. Crear feature branch
-3. Commit con formato estándar
-4. Push a la rama
-5. Abrir Pull Request
+### 🎯 Casos de Uso Prácticos
 
-## 📄 Licencia
+#### **Uso Diario - Operaciones**
+```bash
+# 1. Verificar estado al llegar a la oficina
+npm run monitor
 
-Privado - Mextic (git@github.com:mextic/recargas.git)
+# 2. Revisar rendimiento del día anterior  
+npm run analytics:single
+
+# 3. Monitorear si hay alertas automáticas
+npm run analytics | grep "🚨"
+```
+
+#### **Uso Semanal - Gestión**
+```bash
+# 1. Dashboard completo para reuniones
+npm run analytics
+
+# 2. Exportar datos para reportes ejecutivos
+npm run analytics:export
+
+# 3. Verificar tendencias de crecimiento
+npm run analytics | grep -A 5 "ANÁLISIS SEMANAL"
+```
+
+#### **Uso Mensual - Estrategia**
+```bash
+# 1. Análisis profundo de 6 meses
+npm run analytics:single
+
+# 2. Comparar rendimiento año sobre año
+npm run analytics | grep -A 10 "ANÁLISIS SEMESTRAL"
+
+# 3. Identificar patrones estacionales
+npm run analytics | grep -A 7 "DISTRIBUCIÓN SEMANAL"
+```
+
+### PM2 Monitoring Profesional
+```bash
+# Estado del proceso empresarial
+npm run pm2:status
+┌─────┬──────────┬─────────────┬─────────┬─────────┬──────────┐
+│ id  │ name     │ mode        │ ↺       │ status  │ cpu      │
+├─────┼──────────┼─────────────┼─────────┼─────────┼──────────┤
+│ 0   │ recargas │ fork        │ 0       │ online  │ 2.1%     │
+└─────┴──────────┴─────────────┴─────────┴─────────┴──────────┘
+
+# Logs en tiempo real con colores
+npm run pm2:logs
+
+# Dashboard visual completo  
+npm run pm2:monitor
+```
+
+## 🚨 Troubleshooting Empresarial
+
+### Problemas Comunes y Soluciones
+
+#### 1. Recovery No Procesa (Error Crítico)
+```bash
+# Diagnóstico: Verificar colas auxiliares específicas
+ls -la data/*.json
+cat data/gps_auxiliary_queue.json | jq '.[0]'
+
+# Verificar locks distribuidos Redis
+redis-cli get "lockRecharge:recharge_gps"
+
+# Logs de error handling
+npm run pm2:logs | grep ERROR_HANDLER
+```
+
+#### 2. Timeout/IP Mostrando 0.00/0.0.0.0
+```bash
+# SOLUCIONADO: Bug corregido en commit ce868bf
+# Verificar estructura de respuesta TAECEL
+grep -A 5 "webserviceData.response" lib/processors/GPSRechargeProcessor.js
+
+# Probar nueva recarga para validar fix
+npm run test:integration
+```
+
+#### 3. Scheduling No Ejecuta en Horarios Exactos
+```bash
+# Verificar configuración RecurrenceRule
+grep -A 10 "RecurrenceRule" index.js
+
+# Validar zona horaria
+date
+timedatectl status
+```
+
+#### 4. PM2 Process "recargas" No Encontrado
+```bash
+# Iniciar con configuración ecosystem
+npm run pm2:start
+
+# Verificar configuración PM2
+cat ecosystem.config.js | grep -A 5 "name:"
+
+# Status detallado
+pm2 describe recargas
+```
+
+#### 5. Error Handler Categorización Incorrecta
+```bash
+# Verificar patrones de error
+grep -A 10 "ERROR_CATEGORIES" lib/utils/errorHandler.js
+
+# Ver clasificación en tiempo real
+npm run pm2:logs | grep "categorizado como"
+```
+
+## 📋 Variables del Sistema por Servicio
+
+### GPS (Configuración Empresarial)
+| Variable | Descripción | Default | Producción |
+|----------|-------------|---------|------------|
+| `GPS_MINUTOS_SIN_REPORTAR` | Intervalo y umbral | 10 | 6-15 min |
+| `GPS_DIAS_SIN_REPORTAR` | Límite query | 14 | 14 días |
+| `IMPORTE` | Monto fijo | $10 | $10 |
+| `DIAS` | Vigencia | 8 | 8 días |
+| `CODIGO` | Producto TAECEL | TEL010 | TEL010 |
+
+### VOZ (Configuración Dual)
+| Variable | Descripción | Default | Opciones |
+|----------|-------------|---------|----------|
+| `VOZ_SCHEDULE_MODE` | Modo scheduling | fixed | fixed/interval |
+| `VOZ_MINUTOS_SIN_REPORTAR` | Intervalo (modo interval) | - | 30-120 min |
+
+### ELIoT (Configuración IoT)
+| Variable | Descripción | Default | Producción |
+|----------|-------------|---------|------------|
+| `ELIOT_MINUTOS_SIN_REPORTAR` | Intervalo IoT | 10 | 10-30 min |
+
+## 🎯 Testing Empresarial
+
+### Suite Completa de Testing
+```bash
+# Tests automatizados completos
+npm test                     # Suite completa
+npm run test:unit            # Tests unitarios especializados  
+npm run test:integration     # Tests de integración empresarial
+npm run test:coverage        # Cobertura de código
+
+# Testing específico por servicio
+TEST_VOZ=false TEST_ELIOT=false npm start    # Solo GPS
+TEST_VOZ=true npm start                      # VOZ inmediato  
+```
+
+### Testing con Variables Seguras
+```bash
+# IMPORTANTE: Usar intervalos seguros en testing
+export GPS_MINUTOS_SIN_REPORTAR=6    # Mínimo 6 minutos
+export ELIOT_MINUTOS_SIN_REPORTAR=10 # Mínimo 10 minutos
+
+# NUNCA usar en producción:
+# GPS_MINUTOS_SIN_REPORTAR=1  ❌ Afecta producción
+```
+
+### Debugging Profesional
+```javascript
+// Breakpoints estratégicos:
+VozRechargeProcessor.js:51     // Recovery VOZ start
+GPSRechargeProcessor.js:49     // Recovery GPS start  
+ErrorHandler.js:174           // Smart retry execution
+AdvancedMonitor.js:89         // Analytics calculation
+```
+
+## 📈 Roadmap Empresarial
+
+### 🚀 Próximas Fases (Q1 2025)
+- [ ] **Circuit Breaker Pattern**: Protección anti-cascada fallos
+- [ ] **Dead Letter Queue**: Gestión avanzada errores irrecuperables  
+- [ ] **API REST Empresarial**: Control manual y monitoreo externo
+- [ ] **Alertas Multi-Canal**: Telegram, Email, Slack automatizadas
+- [ ] **Dashboard Web Real-Time**: Interfaz empresarial moderna
+
+### 🔮 Visión a Largo Plazo (2025)
+- [ ] **Machine Learning**: Predicción patrones de consumo
+- [ ] **Auto-Scaling**: Escalado automático por demanda
+- [ ] **Multi-Región**: Despliegue geográfico distribuido
+- [ ] **Blockchain Audit**: Trazabilidad inmutable de transacciones
+- [ ] **AI-Powered Analytics**: Insights automatizados de negocio
+
+## 🔒 Seguridad Empresarial
+
+### Protección de Credenciales
+```bash
+# ✅ BUENAS PRÁCTICAS IMPLEMENTADAS:
+# .env removido del repositorio (commit 69459e3)
+# .env.example como plantilla segura
+# .gitignore protege archivos sensibles
+# Variables de entorno para todos los secrets
+
+# ❌ NUNCA HACER:
+# Commitear .env con credenciales reales
+# Hardcodear passwords en código
+# Compartir .env por email/chat
+```
+
+### Auditoría y Logging
+- Logs estructurados con timestamps precisos
+- Métricas de errores categorizadas automáticamente
+- Alertas automáticas por umbrales de fallos
+- Recovery audit trail completo
+
+## 🤝 Contribución Empresarial
+
+### Estándares de Código
+```bash
+# 1. Setup ambiente desarrollo
+git clone git@github.com:mextic/recargas.git
+cd recargas-optimizado
+npm install
+cp .env.example .env  # Configurar credenciales dev
+
+# 2. Crear feature branch
+git checkout -b feature/nueva-funcionalidad
+
+# 3. Desarrollo con testing
+npm run test:watch          # Tests en paralelo
+npm run test:coverage       # Verificar cobertura
+
+# 4. Commit con formato empresarial
+git commit -m "feat: descripción concisa de funcionalidad
+
+- Detalle específico de cambios
+- Impacto en rendimiento/seguridad  
+- Tests agregados/modificados
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+
+# 5. Push y Pull Request
+git push origin feature/nueva-funcionalidad
+# Crear PR con template empresarial
+```
+
+### Code Review Checklist
+- [ ] Tests unitarios y de integración pasan
+- [ ] Cobertura de código > 80%
+- [ ] Error handling apropiado implementado
+- [ ] Logging estructurado agregado
+- [ ] Variables de entorno documentadas
+- [ ] Performance impact evaluado
+- [ ] Security review completado
+
+## 📊 Métricas de Rendimiento
+
+### KPIs Operacionales Actuales
+- **Disponibilidad**: 99.9% uptime target
+- **Performance**: < 2s tiempo respuesta promedio
+- **Reliability**: < 0.1% tasa falla por servicio
+- **Recovery**: < 30s tiempo recovery automático
+
+### Monitoreo Empresarial
+```bash
+# Dashboard tiempo real
+npm run analytics
+
+# Métricas PM2 continuous
+npm run pm2:monitor
+
+# Logs structured query
+npm run pm2:logs | grep "operation_completed"
+```
+
+## 📄 Licencia y Contacto
+
+**Privado** - Mextic Systems  
+**Repositorio**: git@github.com:mextic/recargas.git  
+**Documentación**: [CLAUDE.md](./CLAUDE.md)  
+**Support**: Equipo de desarrollo Mextic
 
 ---
 
-**Generado con ❤️ por el equipo de Mextic**
+## 🎉 Agradecimientos
+
+Este sistema fue desarrollado con la colaboración de:
+- **Claude Code AI**: Asistencia en arquitectura y optimización
+- **Equipo Mextic**: Requerimientos de negocio y testing
+- **Proveedores TAECEL/MST**: APIs de recarga confiables
+
+**Generado con ❤️ y tecnología de punta por el equipo de Mextic**
+
+---
+
+*Última actualización: Septiembre 2025 | Versión: 2.0 | Estado: Producción Enterprise*

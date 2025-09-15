@@ -247,7 +247,7 @@ seeds/production/
 
 # ===== ARCHIVOS DE DEPLOYMENT =====
 # PM2
-ecosystem.config.js
+# ecosystem.config.js  # Incluir configuración PM2 en repo
 .pm2/
 
 # Logs de deployment
