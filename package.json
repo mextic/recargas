@@ -12,7 +12,12 @@
     "test:unit": "jest --testMatch='**/tests/unit/**/*.test.js'",
     "test:legacy": "node tests/integration.test.js",
     "setup": "node scripts/setup.js",
-    "monitor": "node monitor.js"
+    "monitor": "node monitor.js",
+    "analytics": "node monitor-advanced.js",
+    "analytics:single": "node monitor-advanced.js --single",
+    "analytics:export": "node monitor-advanced.js --export",
+    "analytics:demo": "node simple-demo.js",
+    "dashboard": "node monitor-advanced.js"
   },
   "dependencies": {
     "sequelize": "^6.35.0",

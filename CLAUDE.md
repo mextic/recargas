@@ -7,7 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm start` - Starts the main recharge orchestrator system
 - `npm test` - Runs integration tests
 - `npm run setup` - Runs setup script for initial configuration  
-- `npm run monitor` - Starts the monitoring system
+- `npm run monitor` - Starts the basic monitoring system
+- `npm run analytics` - Starts the advanced enterprise analytics dashboard (NEW)
+- `npm run analytics:single` - Generates a single comprehensive analytics report (NEW)
+- `npm run analytics:export` - Exports analytics data to JSON format (NEW)
+- `npm run analytics:demo` - Shows demo of analytics dashboard with simulated data (NEW)
+- `npm run dashboard` - Alias for advanced analytics dashboard (NEW)
 
 ## Architecture Overview
 
@@ -136,28 +141,43 @@ ELIOT_MINUTOS_SIN_REPORTAR=10   # Minimum minutes without reporting to trigger r
 - **Métricas separadas**: `logMetrics()` para business events
 - **Error handling**: Exceptions y rejections capturadas
 
-### 📋 FASE 2: Monitoring + Error Handling (PENDIENTE)
+### ✅ FASE 2A: Error Handling + Monitoring (COMPLETADA)
+**Estado**: Error handling ✅, Advanced Analytics ✅
+**Fecha inicio**: 2025-09-13 | **Fecha fin**: 2025-09-13
 
-#### 2.1 Monitoring Avanzado
-- **Dashboard mejorado**: Expandir `monitor.js` con métricas en tiempo real
-- **Métricas de negocio**:
-  - Recargas/hora por servicio
-  - Tasa de éxito (%)
-  - Montos procesados ($)
-  - Tiempo promedio por operación
-  - Distribución de errores por categoría
-- **Health checks**: Endpoints `/health` y `/metrics`
-- **Alertas automáticas**: Slack/Email cuando falle > X veces
+#### 2.1 Sistema de Analíticas Empresariales ✅
+- **AdvancedMonitor**: Sistema completo de analíticas por períodos
+  - **Períodos**: Semanal (4 semanas), Mensual (6 meses), Semestral (2 años)
+  - **Servicios**: GPS 🟢, VOZ 🔵, ELIoT 🟡 con datos reales de tablas
+  - **Métricas profesionales**: Volumen, financieras, rendimiento, tendencias
+  - **Indicadores de crecimiento**: Revenue, volumen, dispositivos, eficiencia
+  - **Distribución**: Por día de la semana, estacional, año sobre año
+  
+- **DashboardRenderer**: Visualización profesional en consola
+  - **Dashboard ejecutivo**: Resumen completo con formateo empresarial
+  - **KPIs de negocio**: Operacionales, financieros, clientes
+  - **Tendencias predictivas**: Crecimiento, patrones estacionales
+  - **Alertas automáticas**: Sistema de alertas categorizado
+  
+- **Comandos disponibles**:
+  - `npm run analytics` - Dashboard en tiempo real (30s refresh)
+  - `npm run analytics:single` - Reporte único completo
+  - `npm run analytics:export` - Exportar datos a JSON
+  
+- **Uso de datos reales**: 
+  - Tabla `recargas`: Campo `tipo` = 'rastreo'|'paquete'|'eliot'
+  - Tabla `detalle_recargas`: Detalles individuales por transacción
+  - Cálculos automáticos: Ingresos, dispositivos únicos, tasas éxito
 
-#### 2.2 Manejo de Errores Categorizado
-- **Clasificación de errores**:
-  - `RETRIABLE`: Saldo insuficiente, timeout red
-  - `FATAL`: Error de configuración, DB down
-  - `BUSINESS`: SIM inválido, servicio no disponible
-- **Circuit breaker**: Para servicios externos (TAECEL/MST)
-- **Dead letter queue**: Para recargas que fallan consistentemente
-- **Retry policies**: Diferenciadas por tipo de error
-- **Error aggregation**: Agrupar errores similares
+#### 2.1 Manejo de Errores Categorizado ✅
+- **Clasificación automática** de errores con patrones regex
+  - `RETRIABLE`: Saldo insuficiente, timeout, rate limit (5 reintentos exponenciales)
+  - `FATAL`: DB down, Redis failed, config inválida (0 reintentos, alerta inmediata)
+  - `BUSINESS`: SIM inválido, servicio no disponible (cuarentena + notificación)
+- **Smart retry strategies**: Exponencial, linear, fixed con jitter
+- **Contadores de error**: Hourly/daily tracking para thresholds
+- **Alert system**: Severity-based (CRITICAL, WARNING, INFO)
+- **Archivo**: `lib/utils/errorHandler.js` - 400+ líneas con factory pattern
 
 ### 📋 FASE 3: Performance + API (PENDIENTE)
 
@@ -208,14 +228,27 @@ DELETE /api/v1/locks/:lockId             // Liberar lock específico
 - **Rate limiting**: Por IP/usuario en API
 - **JWT Authentication**: Para endpoints administrativos
 
-### 🎯 ORDEN DE IMPLEMENTACIÓN SUGERIDO
+### 📊 PROGRESO ACTUAL (Sesión 2025-09-13)
 
-**Próxima sesión (Fase 2A)**:
-1. Expandir `monitor.js` con métricas de negocio
-2. Implementar sistema de categorización de errores
-3. Crear health check endpoints básicos
+**✅ COMPLETADO**:
+- Fase 1: Testing + Logging (Jest + Winston)
+- Fase 2A.1: Sistema de categorización de errores
 
-**Sesión siguiente (Fase 2B)**:
+**🔄 EN PROGRESO (Esta sesión)**:
+- Integración de errorHandler en processors GPS/VOZ/ELIoT
+- Tests para error handling system
+- Dashboard monitoring mejorado
+
+**📋 PRÓXIMAS TAREAS (Orden de prioridad)**:
+
+**Resto de Fase 2A (Esta sesión)**:
+1. ✅ Error categorization system → `lib/utils/errorHandler.js`
+2. 🔄 Integrar en processors GPS/VOZ/ELIoT 
+3. 🔄 Tests para error handling
+4. ⏳ Expandir `monitor.js` con métricas de negocio
+5. ⏳ Crear health check endpoints básicos
+
+**Fase 2B (Próxima sesión)**:
 1. Circuit breaker para webservices
 2. Dead letter queue implementation  
 3. Sistema de alertas básico
