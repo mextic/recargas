@@ -1,0 +1,328 @@
+# ===============================================
+# .gitignore para Sistema de Recargas Prepago
+# ===============================================
+
+# ===== ARCHIVOS DE CONFIGURACIÓN SENSIBLES =====
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+config/secrets.js
+config/credentials.json
+
+# ===== NODE.JS =====
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.yarn-integrity
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory usado por tools como istanbul
+coverage/
+*.lcov
+.nyc_output
+
+# ===== LOGS =====
+# Logs del sistema
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Logs específicos del proyecto
+recharge-*.log
+error-*.log
+combined-*.log
+debug-*.log
+
+# Winston logs rotados
+logs/*.log.*
+logs/error/*.log
+logs/combined/*.log
+logs/debug/*.log
+
+# ===== DATOS PERSISTENTES =====
+# Cola de persistencia (contiene datos sensibles)
+data/
+queues/
+*.queue
+persistence-*.json
+auxiliary-queue-*.json
+recovery-*.json
+
+# Backups de colas
+backup-queues/
+*.backup
+
+# ===== EXPORTS Y REPORTES =====
+# Analytics exports
+exports/
+analytics-export-*.json
+analytics-export-*.csv
+reports/
+*.xlsx
+*.xls
+
+# Screenshots y capturas
+screenshots/
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# ===== TEMPORALES =====
+# Archivos temporales del sistema
+tmp/
+temp/
+.tmp/
+*.tmp
+*.temp
+
+# Cache directories
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+dist/
+build/
+
+# ===== IDE Y EDITORES =====
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# IntelliJ / WebStorm
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# ===== SISTEMA OPERATIVO =====
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ===== TESTING =====
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# Test artifacts
+test-results/
+screenshots-test/
+videos-test/
+
+# ===== CONTENEDORES =====
+# Docker
+.dockerignore
+docker-compose.override.yml
+.docker/
+
+# ===== BASES DE DATOS =====
+# SQLite databases (si se usan para testing)
+*.sqlite
+*.sqlite3
+*.db
+
+# Database dumps
+*.sql
+*.dump
+
+# ===== ARCHIVOS DE DEBUG =====
+# Debug files específicos del proyecto
+debug-*.js
+test-*.js
+demo-*.js
+temp-*.js
+
+# Archivos de debugging temporal
+debug.log
+trace.log
+performance.log
+
+# ===== CERTIFICADOS Y CLAVES =====
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.csr
+*.cer
+*.p12
+*.pfx
+
+# SSH keys
+id_rsa
+id_rsa.pub
+id_dsa
+id_dsa.pub
+id_ecdsa
+id_ecdsa.pub
+id_ed25519
+id_ed25519.pub
+
+# ===== ARCHIVOS ESPECÍFICOS DEL PROYECTO =====
+# Archivos de configuración local
+config/local.js
+config/development.local.js
+
+# Archivos de testing y debugging temporal
+monitor-test.js
+analytics-test.js
+webservice-debug.js
+database-test.js
+
+# Archivos de migration sensibles
+migrations/data/
+seeds/production/
+
+# ===== ARCHIVOS DE DEPLOYMENT =====
+# PM2
+ecosystem.config.js
+.pm2/
+
+# Logs de deployment
+deploy.log
+deployment-*.log
+
+# ===== OTROS =====
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env.test.local
+.env.development.local
+.env.production.local
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Dependency Lock file
+yarn.lock
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Dependency Lock file (optional, mantener si usas yarn)
+# yarn.lock
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+
+# ===== COMENTARIOS IMPORTANTES =====
+# IMPORTANTE: 
+# - Nunca commitear .env con credenciales reales
+# - Logs pueden contener información sensible
+# - Cola de persistencia contiene datos de recargas
+# - Exports pueden tener información confidencial
+# - Siempre revisar antes de hacer commit
