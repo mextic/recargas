@@ -134,36 +134,57 @@ class RechargeOrchestrator {
             await this.runProcess('GPS');
         }));
         
-        // VOZ - 2 veces al día con diferencia de 3 horas
-        console.log('   📞 VOZ verificará 2 veces al día: 1:00 AM y 4:00 AM');
+        // VOZ - Configurable con variable de entorno o horarios fijos por defecto
+        const vozMode = process.env.VOZ_SCHEDULE_MODE || 'fixed'; // 'fixed' o 'interval'
+        const vozInterval = parseInt(process.env.VOZ_MINUTOS_SIN_REPORTAR) || null;
         
-        // Primera ejecución: 1:00 AM
-        const vozRule1 = new schedule.RecurrenceRule();
-        vozRule1.hour = 1;
-        vozRule1.minute = 0;
-        vozRule1.tz = "America/Mazatlan";
-        
-        this.schedules.set('VOZ-1', schedule.scheduleJob(vozRule1, async () => {
-            console.log('📞 Ejecutando VOZ - Primera verificación (1:00 AM)');
-            await this.runProcess('VOZ');
-        }));
-        
-        // Segunda ejecución: 4:00 AM (3 horas después)
-        const vozRule2 = new schedule.RecurrenceRule();
-        vozRule2.hour = 4;
-        vozRule2.minute = 0;
-        vozRule2.tz = "America/Mazatlan";
-        
-        this.schedules.set('VOZ-2', schedule.scheduleJob(vozRule2, async () => {
-            console.log('📞 Ejecutando VOZ - Segunda verificación (4:00 AM)');
-            await this.runProcess('VOZ');
-        }));
+        if (vozMode === 'interval' && vozInterval) {
+            // Modo intervalo: cada N minutos (como GPS)
+            console.log(`   📞 VOZ verificará cada ${vozInterval} minutos (VOZ_MINUTOS_SIN_REPORTAR=${vozInterval})`);
+            
+            const vozRule = new schedule.RecurrenceRule();
+            vozRule.minute = new schedule.Range(0, 59, vozInterval);
+            vozRule.tz = "America/Mazatlan";
+            
+            this.schedules.set('VOZ', schedule.scheduleJob(vozRule, async () => {
+                await this.runProcess('VOZ');
+            }));
+        } else {
+            // Modo fijo: 2 veces al día (comportamiento actual)
+            console.log('   📞 VOZ verificará 2 veces al día: 1:00 AM y 4:00 AM');
+            
+            // Primera ejecución: 1:00 AM
+            const vozRule1 = new schedule.RecurrenceRule();
+            vozRule1.hour = 1;
+            vozRule1.minute = 0;
+            vozRule1.tz = "America/Mazatlan";
+            
+            this.schedules.set('VOZ-1', schedule.scheduleJob(vozRule1, async () => {
+                console.log('📞 Ejecutando VOZ - Primera verificación (1:00 AM)');
+                await this.runProcess('VOZ');
+            }));
+            
+            // Segunda ejecución: 4:00 AM (3 horas después)
+            const vozRule2 = new schedule.RecurrenceRule();
+            vozRule2.hour = 4;
+            vozRule2.minute = 0;
+            vozRule2.tz = "America/Mazatlan";
+            
+            this.schedules.set('VOZ-2', schedule.scheduleJob(vozRule2, async () => {
+                console.log('📞 Ejecutando VOZ - Segunda verificación (4:00 AM)');
+                await this.runProcess('VOZ');
+            }));
+        }
         
         // ELIOT - Intervalo configurable basado en ELIOT_MINUTOS_SIN_REPORTAR
         const eliotInterval = parseInt(process.env.ELIOT_MINUTOS_SIN_REPORTAR) || 10;
         console.log(`   🔄 ELIoT verificará cada ${eliotInterval} minutos (ELIOT_MINUTOS_SIN_REPORTAR=${eliotInterval})`);
         
-        this.schedules.set('ELIOT', schedule.scheduleJob(`*/${eliotInterval} * * * *`, async () => {
+        const eliotRule = new schedule.RecurrenceRule();
+        eliotRule.minute = new schedule.Range(0, 59, eliotInterval);
+        eliotRule.tz = "America/Mazatlan";
+        
+        this.schedules.set('ELIOT', schedule.scheduleJob(eliotRule, async () => {
             await this.runProcess('ELIOT');
         }));
         
