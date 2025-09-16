@@ -1,0 +1,219 @@
+
+> recargas-optimizado@2.0.0 start
+> node index.js
+
+🚀 Iniciando Sistema de Recargas Optimizado v2.0
+=================================================
+
+📊 Conectando bases de datos...
+   ✅ GPS DB conectada
+   ✅ ELIoT DB conectada
+   ✅ Redis conectado
+💾 Inicializando sistema de persistencia...
+🔒 Inicializando gestor de locks...
+🔧 [LOCK_MANAGER] Proveedor configurado: REDIS
+⚙️ Inicializando procesadores...
+2025-09-14 20:48:50.251 [[32minfo[39m] [gps] [processor_init] Processor inicializado con sistema de errores inteligente
+2025-09-14 20:48:50.253 [[32minfo[39m] [voz] [processor_init] Processor inicializado con sistema de errores inteligente
+2025-09-14 20:48:50.253 [[32minfo[39m] [ELIoT] [processor_init] Processor inicializado con sistema de errores inteligente
+🔍 Verificando estado anterior...
+📅 Configurando tareas programadas...
+   🔄 GPS verificará cada 10 minutos (GPS_MINUTOS_SIN_REPORTAR=10)
+   📞 VOZ verificará 2 veces al día: 1:00 AM y 4:00 AM
+   🔄 ELIoT verificará cada 10 minutos (ELIOT_MINUTOS_SIN_REPORTAR=10)
+   • GPS: Cada 10 minutos
+   • VOZ: 2 veces al día (1:00 AM y 4:00 AM)
+   • ELIOT: Cada 10 minutos
+
+🧪 TESTING: Ejecutando ELIoT inmediatamente...
+
+✅ Sistema inicializado correctamente
+
+
+🔧 Ejecutando proceso GPS inicial...
+
+==================================================
+🚀 [2025-09-14 20:48:50] Iniciando proceso GPS - Mazatlán
+==================================================
+2025-09-14 20:48:50.284 [[32minfo[39m] [gps] [process_start] Iniciando proceso de recarga
+2025-09-14 20:48:50.285 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [recharge_gps_6874_1757908130284] Iniciando operación con reintentos inteligentes
+🔐 [LOCK] Intentando adquirir lock: recharge_gps
+   • Lock ID: recharge_gps_6874_1757908130284
+   • PID: 6874
+   • Timeout: 3600s
+   • Proveedor: REDIS
+🧹 [CLEANUP] Limpiando locks expirados (proveedor: REDIS)...
+🔴 [REDIS] Intentando lock en Redis: lockRecharge:recharge_gps
+✅ [REDIS] Lock adquirido exitosamente
+2025-09-14 20:48:50.522 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [recharge_gps_6874_1757908130284] Operación ejecutada exitosamente
+2025-09-14 20:48:50.523 [[32minfo[39m] [gps] [lock_acquired] Lock adquirido exitosamente
+2025-09-14 20:48:50.523 [[32minfo[39m] [gps] [check_recovery_queue] Verificando cola auxiliar para recovery
+2025-09-14 20:48:50.523 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [stats_1757908130523] Iniciando operación con reintentos inteligentes
+2025-09-14 20:48:50.524 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [stats_1757908130523] Operación ejecutada exitosamente
+2025-09-14 20:48:50.524 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [records_1757908130524] Iniciando operación con reintentos inteligentes
+2025-09-14 20:48:50.525 [[32minfo[39m] [gps] [get_records_query] Ejecutando consulta GPS
+2025-09-14 20:48:50.525 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [gps_query_1757908130525] Iniciando operación con reintentos inteligentes
+2025-09-14 20:48:50.980 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [gps_query_1757908130525] Operación ejecutada exitosamente
+2025-09-14 20:48:50.981 [[32minfo[39m] [gps] [get_records_result] Consulta GPS completada
+2025-09-14 20:48:50.981 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [records_1757908130524] Operación ejecutada exitosamente
+2025-09-14 20:48:50.981 [[32minfo[39m] [gps] [records_fetched] Registros obtenidos para procesamiento
+2025-09-14 20:48:50.981 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [process_1757908130981] Iniciando operación con reintentos inteligentes
+2025-09-14 20:48:50.982 [[32minfo[39m] [gps] [process_records_start] Iniciando procesamiento de registros GPS
+2025-09-14 20:48:50.982 [[32minfo[39m] [gps] [gps_statistics] Estadísticas GPS detalladas
+2025-09-14 20:48:50.982 [[32minfo[39m] [gps] [gps_algorithm_indicators] Indicadores de algoritmo GPS
+2025-09-14 20:48:50.983 [[33mwarn[39m] [gps] [devices_expiring_today] Dispositivos con vencimiento próximo pero reportando
+📊 DISTRIBUCIÓN POR DÍAS SIN REPORTAR (Límite: 14 días):
+   • 0 días (reportando hoy): 258 dispositivos (72.7%)
+   • 1-2 días (10% - muy reciente): 81 dispositivos (22.8%)
+   • 3-5 días (35% - reciente): 8 dispositivos (2.3%)
+   • 6-10 días (70% - moderado): 5 dispositivos (1.4%)
+   • 11-14 días (100% - límite crítico): 3 dispositivos (0.8%)
+   ℹ️  Nota: Solo se muestran dispositivos ≤14 días (filtro SQL HAVING)
+💡 RECOMENDACIONES DE OPTIMIZACIÓN:
+   • Con umbral 10min: 98 dispositivos (27.6%)
+   • Con umbral 30min: 96 dispositivos (27.0%)
+   • Con umbral 60min: 95 dispositivos (26.8%)
+   • Umbral actual: 10min → 1 dispositivos
+✅ SALUDABLE: Solo 0.3% necesita recarga (<5% indica sistema estable)
+🕐 CONTEXTO TEMPORAL:
+   • Hora actual: 20:48 (Mazatlán)
+   • Momento del día: Noche
+🟢 GPS: {prefix}[32m[0m░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0% | 0/1 | Obteniendo proveedores... | ETA: Completado2025-09-14 20:48:50.984 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [balance_check_1757908130984] Iniciando operación con reintentos inteligentes
+2025-09-14 20:48:50.984 [[32minfo[39m] [gps] [get_taecel_balance] Consultando saldo TAECEL
+2025-09-14 20:48:51.486 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [balance_check_1757908130984] Operación ejecutada exitosamente
+2025-09-14 20:48:51.487 [[32minfo[39m] [gps] [balance_result] Balance TAECEL obtenido: $95700
+2025-09-14 20:48:51.488 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [balance_check_1757908131488] Iniciando operación con reintentos inteligentes
+2025-09-14 20:48:51.489 [[32minfo[39m] [gps] [get_mst_balance] Consultando saldo MST
+2025-09-14 20:48:51.932 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [balance_check_1757908131488] Operación ejecutada exitosamente
+2025-09-14 20:48:51.933 [[32minfo[39m] [gps] [balance_result] Balance MST obtenido: $1.62
+   🏆 Proveedor con más saldo: TAECEL ($95700)
+2025-09-14 20:48:51.933 [[32minfo[39m] [gps] [provider_selected] Proveedor GPS seleccionado
+🟢 GPS: {prefix}[32m[0m░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░   0% | 0/1 | Usando proveedor: TAECEL (Saldo: $95700) | ETA: Infinitys2025-09-14 20:48:51.934 [[32minfo[39m] [gps] [process_device] Procesando dispositivo GPS
+2025-09-14 20:48:51.934 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [gps_8111795230_1757908131934] Iniciando operación con reintentos inteligentes
+   🔵 TAECEL: RequestTXN para SIM 8111795230, Código: TEL010
+   🔵 TAECEL: StatusTXN para TransID 250900977897
+
+==================================================
+🚀 [2025-09-14 20:48:53] Iniciando proceso ELIOT - Mazatlán
+==================================================
+2025-09-14 20:48:53.284 [[32minfo[39m] [ELIoT] [process_start] Iniciando proceso de recarga
+2025-09-14 20:48:53.284 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [smart_retry_start] [recharge_ELIoT_6874_1757908133283] Iniciando operación con reintentos inteligentes
+🔐 [LOCK] Intentando adquirir lock: recharge_ELIoT
+   • Lock ID: recharge_ELIoT_6874_1757908133283
+   • PID: 6874
+   • Timeout: 3600s
+   • Proveedor: REDIS
+🧹 [CLEANUP] Limpiando locks expirados (proveedor: REDIS)...
+🔴 [REDIS] Intentando lock en Redis: lockRecharge:recharge_ELIoT
+✅ [REDIS] Lock adquirido exitosamente
+2025-09-14 20:48:53.544 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [operation_success] [recharge_ELIoT_6874_1757908133283] Operación ejecutada exitosamente
+2025-09-14 20:48:53.545 [[32minfo[39m] [ELIoT] [lock_acquired] Lock adquirido exitosamente
+2025-09-14 20:48:53.545 [[32minfo[39m] [ELIoT] [check_recovery_queue] Verificando cola auxiliar para recovery
+2025-09-14 20:48:53.545 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [smart_retry_start] [stats_1757908133545] Iniciando operación con reintentos inteligentes
+2025-09-14 20:48:53.545 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [operation_success] [stats_1757908133545] Operación ejecutada exitosamente
+2025-09-14 20:48:53.545 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [smart_retry_start] [records_1757908133545] Iniciando operación con reintentos inteligentes
+✅ Conectado a MongoDB para métricas
+   ✅ Índice uuid_1_fecha_-1 ya existe.
+   ✅ Índice fecha_-1 ya existe.
+✅ Verificación de índices de métricas completada correctamente
+2025-09-14 20:48:53.843 [[32minfo[39m] [ELIoT] [get_eliot_records_query] Ejecutando consulta ELIoT
+2025-09-14 20:48:53.843 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [smart_retry_start] [eliot_query_1757908133843] Iniciando operación con reintentos inteligentes
+2025-09-14 20:48:53.935 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [operation_success] [eliot_query_1757908133843] Operación ejecutada exitosamente
+2025-09-14 20:48:53.935 [[32minfo[39m] [ELIoT] [get_eliot_records_result] Consulta inicial ELIoT completada
+2025-09-14 20:48:53.936 [[32minfo[39m] [ELIoT] [mongodb_metrics_filter_start] Iniciando filtrado por métricas MongoDB
+2025-09-14 20:48:53.936 [[32minfo[39m] [ELIoT] [mongodb_metrics_filter_completed] Filtrado por métricas completado
+2025-09-14 20:48:53.936 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [operation_success] [records_1757908133545] Operación ejecutada exitosamente
+2025-09-14 20:48:53.936 [[32minfo[39m] [ELIoT] [records_fetched] Registros obtenidos para procesamiento
+2025-09-14 20:48:53.936 [[32minfo[39m] [ELIoT] [process_completed] Proceso completado exitosamente
+🔓 [LOCK] Liberando lock: recharge_ELIoT (proveedor: REDIS)
+🔓 [REDIS] Lock liberado: recharge_ELIoT
+2025-09-14 20:48:53.983 [[32minfo[39m] [ELIoT] [lock_released] Lock liberado exitosamente
+
+✅ Proceso ELIOT completado en 0.70s
+🏁 [2025-09-14 20:48:53] Proceso finalizado - Mazatlán
+   • Procesados: 0
+   • Exitosos: 0
+   • Fallidos: 0
+2025-09-14 20:48:54.301 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [gps_8111795230_1757908131934] Operación ejecutada exitosamente
+2025-09-14 20:48:54.302 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [aux_queue_8111795230_1757908134302] Iniciando operación con reintentos inteligentes
+2025-09-14 20:48:54.305 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [aux_queue_8111795230_1757908134302] Operación ejecutada exitosamente
+🟢 GPS: {prefix}[32m██████████████████████████████████████████████████[0m 100% | 1/1 | ✅ 8111795230 - OK | ETA: Completado
+2025-09-14 20:48:54.305 [[32minfo[39m] [gps] [gps_recharge_success] GPS recargado exitosamente
+2025-09-14 20:48:54.305 [[32minfo[39m] [gps] [progress_update] Progreso GPS
+2025-09-14 20:48:54.305 [[32minfo[39m] [gps] [process_successful_recharges] Procesando recargas exitosas para inserción en BD
+2025-09-14 20:48:54.305 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [current_cycle_1757908134305] Iniciando operación con reintentos inteligentes
+   🔄 Insertando 1 recargas GPS del ciclo actual como LOTE...
+   ✅ LOTE GPS: 1 recargas insertadas en BD como un solo registro maestro
+   🧹 1 recargas GPS removidas de cola auxiliar
+2025-09-14 20:48:54.551 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [current_cycle_1757908134305] Operación ejecutada exitosamente
+2025-09-14 20:48:54.551 [[32minfo[39m] [gps] [db_insertion_completed] Inserción en BD completada
+2025-09-14 20:48:54.551 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [process_1757908130981] Operación ejecutada exitosamente
+2025-09-14 20:48:54.551 [[32minfo[39m] [gps] [process_completed] Proceso completado exitosamente
+🔓 [LOCK] Liberando lock: recharge_gps (proveedor: REDIS)
+🔓 [REDIS] Lock liberado: recharge_gps
+2025-09-14 20:48:54.617 [[32minfo[39m] [gps] [lock_released] Lock liberado exitosamente
+
+✅ Proceso GPS completado en 4.33s
+🏁 [2025-09-14 20:48:54] Proceso finalizado - Mazatlán
+   • Procesados: 1
+   • Exitosos: 1
+   • Fallidos: 0
+
+==================================================
+🚀 [2025-09-14 20:50:00] Iniciando proceso ELIOT - Mazatlán
+==================================================
+2025-09-14 20:50:00.048 [[32minfo[39m] [ELIoT] [process_start] Iniciando proceso de recarga
+2025-09-14 20:50:00.048 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [smart_retry_start] [recharge_ELIoT_6874_1757908200047] Iniciando operación con reintentos inteligentes
+🔐 [LOCK] Intentando adquirir lock: recharge_ELIoT
+   • Lock ID: recharge_ELIoT_6874_1757908200047
+   • PID: 6874
+   • Timeout: 3600s
+   • Proveedor: REDIS
+🧹 [CLEANUP] Limpiando locks expirados (proveedor: REDIS)...
+
+==================================================
+🚀 [2025-09-14 20:50:00] Iniciando proceso GPS - Mazatlán
+==================================================
+2025-09-14 20:50:00.057 [[32minfo[39m] [gps] [process_start] Iniciando proceso de recarga
+2025-09-14 20:50:00.058 [[32minfo[39m] [ERROR_HANDLER_GPS] [smart_retry_start] [recharge_gps_6874_1757908200057] Iniciando operación con reintentos inteligentes
+🔐 [LOCK] Intentando adquirir lock: recharge_gps
+   • Lock ID: recharge_gps_6874_1757908200057
+   • PID: 6874
+   • Timeout: 3600s
+   • Proveedor: REDIS
+🧹 [CLEANUP] Limpiando locks expirados (proveedor: REDIS)...
+🔴 [REDIS] Intentando lock en Redis: lockRecharge:recharge_ELIoT
+🔴 [REDIS] Intentando lock en Redis: lockRecharge:recharge_gps
+❌ [REDIS] Lock ya existe, no se pudo adquirir
+   • PID propietario: 97897
+   • Edad: 0 minutos
+   • Expira: 2025-09-14 21:50:00 (America/Mazatlan)
+❌ [REDIS] Lock ya existe, no se pudo adquirir
+   • PID propietario: 97897
+   • Edad: 0 minutos
+   • Expira: 2025-09-14 21:50:00 (America/Mazatlan)
+2025-09-14 20:50:00.673 [[32minfo[39m] [ERROR_HANDLER_ELIOT] [operation_success] [recharge_ELIoT_6874_1757908200047] Operación ejecutada exitosamente
+2025-09-14 20:50:00.673 [[32minfo[39m] [ERROR_HANDLER_GPS] [operation_success] [recharge_gps_6874_1757908200057] Operación ejecutada exitosamente
+2025-09-14 20:50:00.673 [[33mwarn[39m] [ELIoT] [lock_acquisition_failed] No se pudo adquirir lock distribuido
+2025-09-14 20:50:00.674 [[33mwarn[39m] [gps] [lock_acquisition_failed] No se pudo adquirir lock distribuido
+
+✅ Proceso ELIOT completado en 0.63s
+🏁 [2025-09-14 20:50:00] Proceso finalizado - Mazatlán
+   • Procesados: 0
+   • Exitosos: 0
+   • Fallidos: 0
+
+✅ Proceso GPS completado en 0.62s
+🏁 [2025-09-14 20:50:00] Proceso finalizado - Mazatlán
+   • Procesados: 0
+   • Exitosos: 0
+   • Fallidos: 0
+
+🛑 Deteniendo sistema...
+   • Schedule GPS cancelado
+   • Schedule VOZ-1 cancelado
+   • Schedule VOZ-2 cancelado
+   • Schedule ELIOT cancelado
+🔓 Liberando todos los locks (proveedor: REDIS)...
+🔓 [REDIS] 0 locks limpiados
+✅ Sistema detenido correctamente

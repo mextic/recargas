@@ -7,6 +7,9 @@ const { VozRechargeProcessor } = require('./lib/processors/VozRechargeProcessor'
 const { ELIoTRechargeProcessor } = require('./lib/processors/ELIoTRechargeProcessor');
 const { PersistenceQueueSystem } = require('./lib/concurrency/PersistenceQueueSystem');
 const { OptimizedLockManager } = require('./lib/concurrency/OptimizedLockManager');
+const AlertManager = require('./lib/alerts/AlertManager');
+const HealthCheckManager = require('./lib/health/HealthCheckManager');
+const SLAMonitor = require('./lib/sla/SLAMonitor');
 const schedule = require('node-schedule');
 const moment = require('moment-timezone');
 
@@ -21,6 +24,11 @@ class RechargeOrchestrator {
         this.lockManager = null;
         this.schedules = new Map();
         this.isInitialized = false;
+        
+        // FASE 5: Servicios de monitoreo y alertas
+        this.alertManager = null;
+        this.healthCheckManager = null;
+        this.slaMonitor = null;
     }
 
     async initialize() {
@@ -69,13 +77,43 @@ class RechargeOrchestrator {
             });
             this.lockManager.setDbConnection(dbGps);
             
-            // 4. Inicializar procesadores
+            // 4. Inicializar servicios de monitoreo (FASE 5)
+            console.log('📊 Inicializando servicios de monitoreo...');
+            try {
+                this.alertManager = new AlertManager();
+                await this.alertManager.initialize();
+                console.log('✅ AlertManager inicializado');
+            } catch (error) {
+                console.warn('⚠️ AlertManager no disponible:', error.message);
+            }
+
+            try {
+                this.slaMonitor = new SLAMonitor(this.alertManager);
+                console.log('✅ SLA Monitor inicializado');
+            } catch (error) {
+                console.warn('⚠️ SLA Monitor no disponible:', error.message);
+            }
+
+            try {
+                this.healthCheckManager = new HealthCheckManager(this.alertManager);
+                console.log('✅ Health Check Manager inicializado');
+            } catch (error) {
+                console.warn('⚠️ Health Check Manager no disponible:', error.message);
+            }
+
+            // 5. Inicializar procesadores
             console.log('⚙️ Inicializando procesadores...');
-            this.processors.GPS = new GPSRechargeProcessor(dbGps, this.lockManager, this.gpsQueue);
-            this.processors.VOZ = new VozRechargeProcessor(dbGps, this.lockManager, this.vozQueue);
-            this.processors.ELIOT = new ELIoTRechargeProcessor({GPS_DB: dbGps, ELIOT_DB: dbEliot}, this.lockManager, this.eliotQueue);
+            this.processors.GPS = new GPSRechargeProcessor(dbGps, this.lockManager, this.gpsQueue, this.alertManager, this.slaMonitor);
+            this.processors.VOZ = new VozRechargeProcessor(dbGps, this.lockManager, this.vozQueue, this.alertManager, this.slaMonitor);
+            this.processors.ELIOT = new ELIoTRechargeProcessor({GPS_DB: dbGps, ELIOT_DB: dbEliot}, this.lockManager, this.eliotQueue, this.alertManager, this.slaMonitor);
             
-            // 5. Verificar recuperación ante crash
+            // 6. Iniciar health checks
+            if (this.healthCheckManager) {
+                console.log('🏥 Iniciando health checks automáticos...');
+                await this.healthCheckManager.start();
+            }
+
+            // 7. Verificar recuperación ante crash
             console.log('🔍 Verificando estado anterior...');
             const gpsStats = await this.gpsQueue.getQueueStats();
             const vozStats = await this.vozQueue.getQueueStats();
@@ -88,7 +126,7 @@ class RechargeOrchestrator {
                 await this.processPendingQueues();
             }
             
-            // 6. Configurar schedules
+            // 8. Configurar schedules
             this.setupSchedules();
             
             // 7. TESTING: Ejecutar servicios inmediatamente para debugging (solo en desarrollo)
