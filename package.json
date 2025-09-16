@@ -44,8 +44,10 @@
   },
   "dependencies": {
     "sequelize": "^6.35.0",
-    "mysql2": "^3.6.0",
+    "mysql2": "^3.7.0",
     "redis": "^4.6.0",
+    "ioredis": "^5.3.2",
+    "generic-pool": "^3.9.0",
     "moment-timezone": "^0.5.43",
     "node-schedule": "^2.1.1",
     "axios": "^1.6.0",

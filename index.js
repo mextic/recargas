@@ -1,7 +1,7 @@
 // ============== SISTEMA DE RECARGAS OPTIMIZADO v2.0 ==============
 require("./lib/instrument.js");
 
-const { initDatabases, dbGps, dbEliot, getRedisClient } = require('./lib/database');
+const { initDatabases, dbGps, dbEliot, getRedisClient, shutdownDatabases, getPoolStats } = require('./lib/database');
 const { GPSRechargeProcessor } = require('./lib/processors/GPSRechargeProcessor');
 const { VozRechargeProcessor } = require('./lib/processors/VozRechargeProcessor');
 const { ELIoTRechargeProcessor } = require('./lib/processors/ELIoTRechargeProcessor');
@@ -328,7 +328,15 @@ class RechargeOrchestrator {
         const gpsStats = await this.gpsQueue.getQueueStats();
         const vozStats = await this.vozQueue.getQueueStats();
         const eliotStats = await this.eliotQueue.getQueueStats();
-        
+
+        // Get connection pool statistics
+        let poolStats = null;
+        try {
+            poolStats = getPoolStats();
+        } catch (error) {
+            console.error('Error getting pool stats:', error.message);
+        }
+
         const status = {
             initialized: this.isInitialized,
             queues: {
@@ -337,9 +345,10 @@ class RechargeOrchestrator {
                 eliot: eliotStats
             },
             locks: await this.lockManager.getStats(),
-            schedules: Array.from(this.schedules.keys())
+            schedules: Array.from(this.schedules.keys()),
+            connectionPools: poolStats
         };
-        
+
         console.log('\n📊 ESTADO DEL SISTEMA:');
         console.log('────────────────────────');
         console.log(`Estado: ${status.initialized ? '✅ Activo' : '❌ Inactivo'}`);
@@ -348,24 +357,45 @@ class RechargeOrchestrator {
         console.log(`Cola ELIOT: ${eliotStats.auxiliaryQueue.total} elementos (${eliotStats.auxiliaryQueue.pendingDb} pendientes)`);
         console.log(`Locks activos: ${status.locks.active}`);
         console.log(`Schedules activos: ${status.schedules.join(', ')}`);
-        
+
+        // Show connection pool statistics
+        if (poolStats) {
+            console.log('\n🔗 CONNECTION POOLS:');
+            console.log('────────────────────');
+            if (poolStats.redis && poolStats.redis.pool) {
+                const rp = poolStats.redis.pool;
+                console.log(`Redis Pool: ${rp.borrowed}/${rp.max} used, ${rp.available} available, ${rp.pending} pending`);
+            }
+            if (poolStats.mysql) {
+                console.log(`GPS Pool: ${poolStats.mysql.gps.borrowed || 0}/${poolStats.mysql.gps.max || 0} used`);
+                console.log(`ELIoT Pool: ${poolStats.mysql.eliot.borrowed || 0}/${poolStats.mysql.eliot.max || 0} used`);
+            }
+        }
+
         return status;
     }
 
     async shutdown() {
         console.log('\n🛑 Deteniendo sistema...');
-        
+
         // Cancelar schedules
         this.schedules.forEach((job, name) => {
             job.cancel();
             console.log(`   • Schedule ${name} cancelado`);
         });
-        
+
         // Liberar locks
         if (this.lockManager) {
             await this.lockManager.releaseAllLocks();
         }
-        
+
+        // Shutdown database connections and pools
+        try {
+            await shutdownDatabases();
+        } catch (error) {
+            console.error('❌ Error during database shutdown:', error.message);
+        }
+
         console.log('✅ Sistema detenido correctamente');
     }
 }
