@@ -49,7 +49,7 @@ module.exports = {
         MIN_BALANCE_THRESHOLD: 100,     // Saldo mínimo: $100
         
         // ===== FEATURES VOZ =====
-        SHOW_PROGRESS_BAR: false,       // Sin barra de progreso (pocos registros)
+        SHOW_PROGRESS_BAR: true,        // Activar barra de progreso animada
         BATCH_PROCESSING: false,        // Procesamiento individual
         USE_ANIMATIONS: true,           // Usar animaciones básicas
         
@@ -95,7 +95,7 @@ module.exports = {
         MIN_BALANCE_THRESHOLD: 50,      // Placeholder: $50
         
         // ===== FEATURES =====
-        SHOW_PROGRESS_BAR: false,       // Sin barra (por definir)
+        SHOW_PROGRESS_BAR: true,        // Activar barra de progreso animada
         BATCH_PROCESSING: false,        // Individual (por definir)
         USE_ANIMATIONS: true,           // Con animaciones
         
