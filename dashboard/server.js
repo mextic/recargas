@@ -4,8 +4,10 @@
  */
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const socketIo = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 const HealthCheckManager = require('../lib/health/HealthCheckManager');
 const AlertManager = require('../lib/alerts/AlertManager');
 const performanceMonitor = require('../lib/performance/PerformanceMonitor');
@@ -15,15 +17,14 @@ const moment = require('moment-timezone');
 class DashboardServer {
     constructor() {
         this.app = express();
-        this.server = http.createServer(this.app);
-        this.io = socketIo(this.server, {
-            cors: {
-                origin: "*",
-                methods: ["GET", "POST"]
-            }
-        });
-        
-        this.port = process.env.DASHBOARD_PORT || 3000;
+
+        // Configuración de servidor - HTTP o HTTPS
+        this.config = this.loadNetworkConfiguration();
+        this.server = this.createServer();
+        this.io = this.setupSocketIO();
+
+        this.port = this.config.port;
+        this.host = this.config.host;
         this.healthManager = null;
         this.alertManager = null;
         this.performanceCache = null;
@@ -41,6 +42,115 @@ class DashboardServer {
         this.setupSocketHandlers();
         
         console.log('📊 Dashboard Server inicializado');
+    }
+
+    loadNetworkConfiguration() {
+        return {
+            // Configuración de red
+            port: parseInt(process.env.DASHBOARD_PORT) || 3000,
+            host: process.env.DASHBOARD_HOST || '0.0.0.0', // 0.0.0.0 permite conexiones externas
+
+            // SSL/HTTPS configuration
+            ssl: {
+                enabled: process.env.DASHBOARD_SSL_ENABLED === 'true',
+                key: process.env.DASHBOARD_SSL_KEY_PATH || './certs/dashboard-key.pem',
+                cert: process.env.DASHBOARD_SSL_CERT_PATH || './certs/dashboard-cert.pem',
+                ca: process.env.DASHBOARD_SSL_CA_PATH || null // Para certificados intermedios
+            },
+
+            // Socket.IO configuration
+            socket: {
+                cors: {
+                    origin: process.env.DASHBOARD_CORS_ORIGIN || "*",
+                    methods: ["GET", "POST"],
+                    credentials: process.env.DASHBOARD_CORS_CREDENTIALS === 'true'
+                },
+                transports: process.env.DASHBOARD_SOCKET_TRANSPORTS ?
+                    process.env.DASHBOARD_SOCKET_TRANSPORTS.split(',') :
+                    ['websocket', 'polling'],
+                pingTimeout: parseInt(process.env.DASHBOARD_PING_TIMEOUT) || 60000,
+                pingInterval: parseInt(process.env.DASHBOARD_PING_INTERVAL) || 25000
+            },
+
+            // Público URL para webhooks/notificaciones
+            publicUrl: process.env.DASHBOARD_PUBLIC_URL || null,
+            basePath: process.env.DASHBOARD_BASE_PATH || '/',
+
+            // Configuración de proxy
+            trustProxy: process.env.DASHBOARD_TRUST_PROXY === 'true',
+
+            // Security headers
+            security: {
+                helmet: process.env.DASHBOARD_SECURITY_HELMET !== 'false',
+                rateLimiting: process.env.DASHBOARD_RATE_LIMITING !== 'false',
+                maxRequests: parseInt(process.env.DASHBOARD_MAX_REQUESTS) || 100,
+                windowMs: parseInt(process.env.DASHBOARD_RATE_WINDOW) || 15 * 60 * 1000 // 15 min
+            }
+        };
+    }
+
+    createServer() {
+        if (this.config.ssl.enabled) {
+            try {
+                const sslOptions = {
+                    key: fs.readFileSync(this.config.ssl.key),
+                    cert: fs.readFileSync(this.config.ssl.cert)
+                };
+
+                // Agregar CA si está configurado
+                if (this.config.ssl.ca && fs.existsSync(this.config.ssl.ca)) {
+                    sslOptions.ca = fs.readFileSync(this.config.ssl.ca);
+                }
+
+                console.log('🔒 Creando servidor HTTPS con SSL');
+                return https.createServer(sslOptions, this.app);
+            } catch (error) {
+                console.error('❌ Error cargando certificados SSL:', error.message);
+                console.log('⚠️ Fallback a HTTP servidor');
+                return http.createServer(this.app);
+            }
+        } else {
+            console.log('🌐 Creando servidor HTTP');
+            return http.createServer(this.app);
+        }
+    }
+
+    setupSocketIO() {
+        const socketConfig = {
+            cors: this.config.socket.cors,
+            transports: this.config.socket.transports,
+            pingTimeout: this.config.socket.pingTimeout,
+            pingInterval: this.config.socket.pingInterval
+        };
+
+        // Si es HTTPS, forzar secure: true
+        if (this.config.ssl.enabled) {
+            socketConfig.cookie = {
+                secure: true,
+                httpOnly: true,
+                sameSite: 'strict'
+            };
+        }
+
+        console.log('🔌 Configurando Socket.IO:', {
+            cors: this.config.socket.cors.origin,
+            transports: this.config.socket.transports,
+            ssl: this.config.ssl.enabled
+        });
+
+        return socketIo(this.server, socketConfig);
+    }
+
+    getPublicUrl() {
+        if (this.config.publicUrl) {
+            return this.config.publicUrl;
+        }
+
+        const protocol = this.config.ssl.enabled ? 'https' : 'http';
+        const host = this.config.host === '0.0.0.0' ? 'localhost' : this.config.host;
+        const port = this.config.port !== (this.config.ssl.enabled ? 443 : 80) ? `:${this.config.port}` : '';
+
+        return `${protocol}://${host}${port}${this.config.basePath}`;
     }
 
     async initializeServices() {
@@ -439,10 +549,32 @@ class DashboardServer {
             // Iniciar actualizaciones en tiempo real
             this.startRealTimeUpdates();
             
+            // Configurar trust proxy si está habilitado
+            if (this.config.trustProxy) {
+                this.app.set('trust proxy', true);
+                console.log('🔗 Trust proxy habilitado');
+            }
+
             // Iniciar servidor
-            this.server.listen(this.port, () => {
-                console.log(`🚀 Dashboard Server ejecutándose en puerto ${this.port}`);
-                console.log(`📊 Dashboard disponible en: http://localhost:${this.port}`);
+            this.server.listen(this.port, this.host, () => {
+                const publicUrl = this.getPublicUrl();
+                const protocol = this.config.ssl.enabled ? 'HTTPS' : 'HTTP';
+
+                console.log(`🚀 Dashboard Server ejecutándose (${protocol})`);
+                console.log(`📍 Host: ${this.host}:${this.port}`);
+                console.log(`📊 Dashboard disponible en: ${publicUrl}`);
+
+                if (this.config.ssl.enabled) {
+                    console.log('🔒 SSL/HTTPS habilitado');
+                }
+
+                if (this.config.socket.cors.origin !== "*") {
+                    console.log(`🌐 CORS configurado para: ${this.config.socket.cors.origin}`);
+                }
+
+                if (this.config.publicUrl) {
+                    console.log(`🌍 URL pública configurada: ${this.config.publicUrl}`);
+                }
             });
             
         } catch (error) {

@@ -420,7 +420,7 @@ npm run analytics:single
 # Útil para: Reports puntuales, debugging
 
 # === EXPORTAR DATOS ===
-npm run analytics:export  
+npm run analytics:export
 # Genera archivos CSV/JSON con métricas
 # Útil para: Reports externos, Excel, análisis offline
 
@@ -429,6 +429,261 @@ npm run analytics:demo
 # Funciona sin conexión a BD real
 # Útil para: Testing, demostración, desarrollo
 ```
+
+## 🌐 Dashboard Web Empresarial - FASE 6
+
+### Características del Dashboard
+El sistema incluye un **Dashboard Web en tiempo real** con tecnología Socket.IO para actualizaciones automáticas sin refrescar página.
+
+#### **🎯 Capacidades del Dashboard:**
+- **Tiempo Real**: Actualizaciones automáticas cada 5 segundos
+- **Métricas Visuales**: Gráficos interactivos con Chart.js
+- **Estado de Servicios**: Semáforo de GPS, VOZ y ELIoT en vivo
+- **Performance Metrics**: CPU, memoria, operaciones por hora
+- **Responsive Design**: Funciona en desktop, tablet y móvil
+- **SSL/HTTPS Support**: Configuración completa para producción
+
+### 🚀 Comandos del Dashboard
+
+```bash
+# === DESARROLLO ===
+npm run dashboard:start          # Dashboard HTTP en localhost:3000
+npm run dashboard:dev           # Modo desarrollo con nodemon
+
+# === ACCESO EXTERNO ===
+npm run dashboard:external      # Permite conexiones desde toda la red (0.0.0.0)
+
+# === SSL/HTTPS ===
+npm run ssl:generate           # Generar certificados SSL para desarrollo
+npm run dashboard:ssl          # Dashboard HTTPS con SSL habilitado
+
+# === PRODUCCIÓN ===
+npm run dashboard:prod         # Modo producción optimizado
+```
+
+### ⚙️ Configuración de Red y SSL
+
+#### **Variables de Entorno del Dashboard:**
+
+```bash
+# === CONFIGURACIÓN BÁSICA ===
+DASHBOARD_PORT=3000                     # Puerto del dashboard (default: 3000)
+DASHBOARD_HOST=localhost                # Host binding (default: localhost)
+
+# === SSL/HTTPS (Producción) ===
+DASHBOARD_SSL_ENABLED=true              # Habilitar HTTPS
+DASHBOARD_SSL_KEY_PATH=./certs/dashboard-key.pem    # Ruta clave privada
+DASHBOARD_SSL_CERT_PATH=./certs/dashboard-cert.pem  # Ruta certificado
+DASHBOARD_SSL_CA_PATH=./certs/ca-bundle.crt         # Chain certificates (opcional)
+
+# === CORS Y SEGURIDAD ===
+DASHBOARD_CORS_ORIGIN=*                 # Orígenes permitidos (dev: *, prod: dominios específicos)
+DASHBOARD_CORS_CREDENTIALS=false        # Permitir credentials en CORS
+
+# === CONFIGURACIÓN AVANZADA ===
+DASHBOARD_PUBLIC_URL=https://dashboard.mi-empresa.com  # URL pública para producción
+DASHBOARD_BASE_PATH=/                   # Path base del dashboard
+DASHBOARD_TRUST_PROXY=false            # Confiar en proxy headers (nginx/apache)
+```
+
+### 🔒 Configuración SSL para Producción
+
+#### **1. Generar Certificados para Desarrollo:**
+```bash
+# Certificados self-signed para testing local
+npm run ssl:generate
+
+# Certificados para IP específica (acceso externo)
+npm run ssl:generate-ip 192.168.1.100
+```
+
+#### **2. Certificados para Producción:**
+
+**Let's Encrypt (Recomendado):**
+```bash
+# Instalar certbot y generar certificados
+certbot certonly --webroot -w /var/www/html -d dashboard.mi-empresa.com
+
+# Certificados estarán en:
+# /etc/letsencrypt/live/dashboard.mi-empresa.com/privkey.pem
+# /etc/letsencrypt/live/dashboard.mi-empresa.com/fullchain.pem
+```
+
+**Configuración producción:**
+```bash
+# .env.production
+DASHBOARD_SSL_ENABLED=true
+DASHBOARD_SSL_KEY_PATH=/etc/letsencrypt/live/dashboard.mi-empresa.com/privkey.pem
+DASHBOARD_SSL_CERT_PATH=/etc/letsencrypt/live/dashboard.mi-empresa.com/fullchain.pem
+DASHBOARD_HOST=0.0.0.0
+DASHBOARD_PORT=443
+DASHBOARD_CORS_ORIGIN=https://mi-app.com,https://admin.mi-empresa.com
+DASHBOARD_TRUST_PROXY=true
+```
+
+### 🛠 Escenarios de Configuración
+
+#### **Desarrollo Local (HTTP):**
+```bash
+# Sin SSL, acceso solo localhost
+export DASHBOARD_PORT=3000
+export DASHBOARD_HOST=localhost
+npm run dashboard:start
+
+# Acceso: http://localhost:3000
+```
+
+#### **Development Team (HTTP + External Access):**
+```bash
+# Sin SSL, acceso desde red local
+export DASHBOARD_HOST=0.0.0.0
+export DASHBOARD_PORT=3000
+npm run dashboard:external
+
+# Acceso: http://192.168.1.x:3000 (desde cualquier PC de la red)
+```
+
+#### **Staging (HTTPS Self-Signed):**
+```bash
+# Con SSL development para testing
+npm run ssl:generate
+export DASHBOARD_SSL_ENABLED=true
+export DASHBOARD_HOST=0.0.0.0
+export DASHBOARD_PORT=3443
+npm run dashboard:ssl
+
+# Acceso: https://192.168.1.x:3443 (advertencia SSL normal)
+```
+
+#### **Producción (HTTPS + Proxy):**
+```bash
+# Con nginx/apache frontal y SSL real
+export DASHBOARD_SSL_ENABLED=false    # SSL termina en nginx
+export DASHBOARD_HOST=127.0.0.1       # Solo acceso interno
+export DASHBOARD_PORT=3001             # Puerto interno
+export DASHBOARD_TRUST_PROXY=true     # Confiar headers nginx
+npm run dashboard:prod
+
+# nginx proxy_pass a http://127.0.0.1:3001
+# Acceso público: https://dashboard.mi-empresa.com
+```
+
+### 🔧 Configuración nginx (Producción)
+
+**Ejemplo nginx config:**
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name dashboard.mi-empresa.com;
+
+    ssl_certificate /etc/ssl/certs/dashboard.crt;
+    ssl_certificate_key /etc/ssl/private/dashboard.key;
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+
+        # Headers para Socket.IO
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+
+        # Timeouts para Socket.IO
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+}
+```
+
+### 📊 Funciones del Dashboard
+
+#### **Panel Principal:**
+- **Estado Sistema**: Uptime, memoria, CPU en tiempo real
+- **Servicios**: GPS 🟢, VOZ 🔵, ELIoT 🟡 con indicadores de estado
+- **Colas**: Dispositivos pendientes por servicio
+- **Locks**: Estado de locks distribuidos Redis
+
+#### **Métricas de Performance:**
+- **Operaciones/Hora**: Rate actual de procesamientos
+- **Hit Ratio**: Efectividad del cache inteligente
+- **Error Rate**: Tasa de errores por servicio
+- **Response Time**: Tiempo promedio de respuesta
+
+#### **Gráficos Interactivos:**
+- **Timeline**: Operaciones en tiempo real (últimos 15 minutos)
+- **Distribution**: Distribución por servicio (pie chart)
+- **Trends**: Tendencias de performance (line chart)
+- **Health**: Métricas de salud del sistema
+
+### 🚨 Troubleshooting Dashboard
+
+#### **Dashboard no carga:**
+```bash
+# Verificar puerto disponible
+netstat -tulnp | grep :3000
+
+# Verificar logs del dashboard
+npm run dashboard:start
+# Error: listen EADDRINUSE :::3000 → cambiar puerto
+export DASHBOARD_PORT=3001
+```
+
+#### **No se ve contenido (estático):**
+```bash
+# Verificar Socket.IO connection
+# Abrir DevTools → Network → WS
+# Debe mostrar: "websocket connection established"
+
+# Si no conecta:
+export DASHBOARD_CORS_ORIGIN=*
+npm run dashboard:start
+```
+
+#### **SSL Warnings (Development):**
+```bash
+# Normal en desarrollo con self-signed certificates
+# Navegador → Advanced → "Proceed to localhost (unsafe)"
+# Producción debe usar certificados CA válidos
+```
+
+#### **External Access no funciona:**
+```bash
+# Verificar firewall
+sudo ufw allow 3000
+# o
+sudo firewall-cmd --add-port=3000/tcp --permanent
+
+# Verificar binding
+export DASHBOARD_HOST=0.0.0.0  # No localhost
+npm run dashboard:external
+```
+
+### 🔐 Seguridad del Dashboard
+
+#### **Recomendaciones Desarrollo:**
+- Usar HTTP solo en redes seguras
+- Self-signed SSL para testing externo
+- CORS abierto (*) solo en desarrollo
+
+#### **Recomendaciones Producción:**
+- **HTTPS obligatorio** con certificados válidos
+- **CORS restrictivo** solo dominios autorizados
+- **Proxy reverso** (nginx/apache) frontal
+- **Firewall** restringido a IPs específicas
+- **Basic Auth** adicional si es necesario
+
+### 📱 Acceso Móvil
+
+El Dashboard es completamente **responsive** y funciona perfecto en:
+- **📱 Smartphones**: iPhone, Android
+- **📱 Tablets**: iPad, Android tablets
+- **💻 Desktop**: Chrome, Firefox, Safari, Edge
+
+**URL móvil:** Mismo URL que desktop, auto-adapta interface
 
 ### 📈 ¿Cómo Interpretar las Métricas?
 

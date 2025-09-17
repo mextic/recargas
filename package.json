@@ -40,6 +40,11 @@
     "alerts:config": "node -e \"const a = new (require('./lib/alerts/AlertManager'))(); console.log(JSON.stringify(a.getStats(), null, 2))\"",
     "health:check": "node lib/health/HealthCheckManager.js --once",
     "dashboard:start": "node dashboard/server.js",
+    "dashboard:ssl": "npm run ssl:generate && DASHBOARD_SSL_ENABLED=true npm run dashboard:start",
+    "dashboard:prod": "NODE_ENV=production npm run dashboard:start",
+    "dashboard:external": "DASHBOARD_HOST=0.0.0.0 npm run dashboard:start",
+    "ssl:generate": "chmod +x scripts/generate-ssl-certs.sh && ./scripts/generate-ssl-certs.sh",
+    "ssl:generate-ip": "chmod +x scripts/generate-ssl-certs.sh && ./scripts/generate-ssl-certs.sh",
     "dashboard:dev": "nodemon dashboard/server.js"
   },
   "dependencies": {
