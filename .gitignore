@@ -212,6 +212,9 @@ performance.log
 
 # ===== CERTIFICADOS Y CLAVES =====
 # SSL certificates
+certs/
+ssl/
+certificates/
 *.pem
 *.key
 *.crt

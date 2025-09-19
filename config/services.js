@@ -6,7 +6,7 @@ module.exports = {
     GPS: {
         // ===== CONFIGURACIÓN FIJA =====
         IMPORTE: 10,                    // Monto fijo: $10
-        DIAS: 8,                        // Vigencia fija: 8 días
+        DIAS: 7,                        // Vigencia fija: 7 días
         CODIGO: 'TEL010',               // Código de producto fijo
         
         // ===== COMPORTAMIENTO UNIFICADO =====
