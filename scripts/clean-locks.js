@@ -9,7 +9,7 @@ const Redis = require('ioredis');
 
 async function cleanLocks() {
     const redis = new Redis({
-        host: process.env.REDIS_HOST || 'localhost',
+        host: process.env.REDIS_HOST || '10.8.0.1',
         port: process.env.REDIS_PORT || 6379,
         password: process.env.REDIS_PASSWORD || undefined,
         db: process.env.REDIS_DB || 0,
