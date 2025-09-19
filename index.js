@@ -150,6 +150,9 @@ class RechargeOrchestrator {
             
             this.isInitialized = true;
             console.log('\n✅ Sistema inicializado correctamente\n');
+
+            // Programar servicios de test si están configurados
+            await this.scheduleTestServices();
             
         } catch (error) {
             console.error('❌ Error durante inicialización:', error);
@@ -373,6 +376,39 @@ class RechargeOrchestrator {
         }
 
         return status;
+    }
+
+    async scheduleTestServices() {
+        const testServices = [];
+
+        if (process.env.TEST_VOZ === 'true') {
+            testServices.push({ service: 'VOZ', delay: 2000 });
+        }
+
+        if (process.env.TEST_ELIOT === 'true') {
+            testServices.push({ service: 'ELIOT', delay: 3000 });
+        }
+
+        // GPS no necesita test schedule porque ya se ejecuta inicialmente de forma automática
+        // Esto hace el comportamiento transparente - GPS se ejecuta una sola vez como flujo normal
+
+        for (const test of testServices) {
+            setTimeout(() => {
+                console.log(`\n🧪 TESTING: Ejecutando ${test.service} inmediatamente...`);
+                this.runProcess(test.service).catch(error => {
+                    console.error(`❌ Error en test ${test.service}:`, error);
+                });
+            }, test.delay);
+        }
+
+        if (testServices.length > 0) {
+            console.log(`🧪 TEST: Servicios programados: ${testServices.map(t => t.service).join(', ')}`);
+        }
+
+        // Mostrar que GPS está en modo TEST pero usa flujo normal
+        if (process.env.TEST_GPS === 'true') {
+            console.log(`🧪 TEST: GPS habilitado - usando flujo normal transparente`);
+        }
     }
 
     async shutdown() {
