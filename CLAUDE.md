@@ -851,6 +851,78 @@ La optimización mantiene exactamente la misma lógica de negocio:
 **Status**: ✅ COMPLETADO - Listo para producción
 **Próxima Fase**: FASE 6 - Resiliencia y Recuperación
 
+## 🔄 FLUJO CORRECTO DE RECARGAS GPS/VOZ/ELIOT (CRÍTICO - Sept 2025)
+
+### Problema Resuelto:
+**Recargas duplicadas múltiples (hasta 3 por SIM)** causadas por:
+- Procesar cola auxiliar sin validación de duplicados
+- Consultar BD ANTES de procesar cola (datos desactualizados)
+- No verificar si cola está vacía antes de consultar BD
+
+### Flujo Requerido (OBLIGATORIO):
+
+1. **RECOVERY PROCESS** → Lee cola auxiliar
+
+2. **Si hay datos en cola**: Se procesan TODOS
+
+3. **INSERT BATCH** → Inserta TODO (índice único `idx_sim_folio` previene duplicados automáticamente)
+
+4. **VALIDATE** → Verifica si existe folio en BD post-inserción
+
+5. **MANEJO COLA** → Items verificados/duplicados se eliminan, no verificados permanecen
+
+6. **CLEANUP** → Limpia solo items confirmados, persiste cola actualizada
+
+7. **VERIFICACIÓN CRÍTICA**:
+   - **7.0**: ¿Cola auxiliar está vacía?
+     - SI vacía → Continuar a 7.1
+     - NO vacía → TERMINAR (return blocked=true, NO consumir webservice)
+   - **7.1**: CONSULTA FRESCA BD → getRecordsToProcess() con datos actualizados
+
+8. **WEBSERVICE** → Solo si cola vacía Y hay candidatos de consulta fresca
+
+9. **Guardar respuestas** en cola auxiliar y volver al paso 3
+
+### Índice Único Implementado:
+```sql
+-- Previene duplicados a nivel BD (implementado Sept 2025)
+ALTER TABLE detalle_recargas
+ADD UNIQUE INDEX idx_sim_folio (sim, folio);
+```
+- MySQL rechaza automáticamente INSERT duplicados (error ER_DUP_ENTRY)
+- La BD es la fuente de verdad para prevenir duplicados
+
+### Flags isRecovery:
+- **true**: Items de cola auxiliar → Aplica prefijo "< RECUPERACIÓN [SERVICIO] >"
+- **false**: Webservice nuevo → SIN prefijo
+
+### Prevención de Duplicados:
+- **Índice único** rechaza duplicados a nivel BD automáticamente
+- **Paso 7.0** evita mezclar cola pendiente con nuevas recargas
+- **Consulta SQL** siempre ejecutada con datos post-inserción actualizados
+
+### Impacto Económico Resuelto:
+- **Antes**: Hasta 3 recargas por SIM ($30 en lugar de $10) ❌
+- **Después**: Solo 1 recarga por SIM (ahorro 66% en costos) ✅
+- **Evidencia**: SIMs 6681844743, 6682348308, 6681016354 tuvieron 3 recargas c/u el 19/09/2025
+
+### Diagrama de Flujo:
+```
+INICIO → [1] Cola Auxiliar → [2] ¿Datos?
+                                 ↓ Sí
+[3] INSERT → [4] VALIDATE → [5] MANEJO → [6] CLEANUP
+                                 ↓
+[7.0] ¿Cola Vacía? → NO → FIN (blocked=true)
+        ↓ SÍ
+[7.1] CONSULTA BD → [8] WEBSERVICE → [9] Guardar Cola → [Repetir desde 3]
+```
+
+---
+
+**Implementado**: Septiembre 19, 2025
+**Validado**: Índice único funcional, duplicados prevenidos
+**Estado**: ✅ PRODUCCIÓN - Prevención activa de duplicados
+
 ## 🔧 FIX CRÍTICO - Cola Auxiliar Recovery (Septiembre 18, 2025)
 
 ### Problema Crítico Resuelto
