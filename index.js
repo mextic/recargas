@@ -149,7 +149,19 @@ class RechargeOrchestrator {
             }
             
             this.isInitialized = true;
-            console.log('\n✅ Sistema inicializado correctamente\n');
+            console.log('\n✅ Sistema inicializado correctamente');
+
+            // Mostrar próximas ejecuciones programadas
+            console.log('\n📅 Próximas ejecuciones programadas:');
+            this.schedules.forEach((job, name) => {
+                const nextDate = job.nextInvocation();
+                if (nextDate) {
+                    console.log(`   • ${name}: ${nextDate.toLocaleString()}`);
+                } else {
+                    console.log(`   • ${name}: No programado`);
+                }
+            });
+            console.log('');
 
             // Programar servicios de test si están configurados
             await this.scheduleTestServices();
@@ -172,6 +184,8 @@ class RechargeOrchestrator {
         gpsRule.tz = "America/Mazatlan";
         
         this.schedules.set('GPS', schedule.scheduleJob(gpsRule, async () => {
+            console.log(`\n⏰ [SCHEDULER] GPS ejecutándose automáticamente - ${new Date().toLocaleString()}`);
+            console.log(`   📍 Próxima ejecución: ${gpsRule.nextInvocationDate(new Date()).toLocaleString()}`);
             await this.runProcess('GPS');
         }));
         
@@ -381,6 +395,10 @@ class RechargeOrchestrator {
     async scheduleTestServices() {
         const testServices = [];
 
+        if (process.env.TEST_GPS === 'true') {
+            testServices.push({ service: 'GPS', delay: 1000 });
+        }
+
         if (process.env.TEST_VOZ === 'true') {
             testServices.push({ service: 'VOZ', delay: 2000 });
         }
@@ -388,9 +406,6 @@ class RechargeOrchestrator {
         if (process.env.TEST_ELIOT === 'true') {
             testServices.push({ service: 'ELIOT', delay: 3000 });
         }
-
-        // GPS no necesita test schedule porque ya se ejecuta inicialmente de forma automática
-        // Esto hace el comportamiento transparente - GPS se ejecuta una sola vez como flujo normal
 
         for (const test of testServices) {
             setTimeout(() => {
@@ -443,11 +458,19 @@ const orchestrator = new RechargeOrchestrator();
 (async () => {
     try {
         await orchestrator.initialize();
-        
-        // Ejecutar GPS una vez al inicio
-        console.log('\n🔧 Ejecutando proceso GPS inicial...');
-        await orchestrator.runProcess('GPS');
-        
+
+        // ELIMINADO: Evitar doble ejecución GPS
+        // La ejecución inicial se maneja en setupSchedules() con TEST_GPS
+
+        // Mantener el proceso corriendo para que funcionen los schedules
+        console.log('🔄 Sistema en funcionamiento - mantener proceso activo para schedules...');
+
+        // Prevenir que el proceso se termine (mantener event loop activo)
+        setInterval(() => {
+            // No hacer nada, solo mantener el proceso vivo
+            // Los schedules manejarán las ejecuciones automáticamente
+        }, 60000); // Cada 60 segundos
+
     } catch (error) {
         console.error('❌ Error fatal durante inicialización:', error);
         process.exit(1);
