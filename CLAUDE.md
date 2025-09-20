@@ -130,14 +130,20 @@ BUSINESS    // invalid SIM, service unavailable → fixed delay + quarantine
 - `recargas` / `detalle_recargas` - Shared with GPS for recharge records
 
 #### ELIoT Service (iot database):
-- `agentes` - IoT device information
+- `agentes` - IoT device information with VARIABLE amounts and expiration days
   - **Campo de saldo**: `fecha_saldo` (fecha de expiración del saldo)
+  - **Monto variable**: `importe_recarga` (50, 10, 7, 6, etc.)
+  - **Días variables**: `dias_recarga` (50, 10, 7, 6, etc.)
+  - **SIM**: `sim` (número telefónico)
 - Recharge records use similar structure as GPS/VOZ
 
-**CRITICAL UPDATE FIELDS:**
-- **GPS**: UPDATE `dispositivos` SET `unix_saldo` = ? WHERE sim = ?
-- **VOZ**: UPDATE `prepagos_automaticos` SET `fecha_expira_saldo` = ? WHERE sim = ?
-- **ELIoT**: UPDATE `agentes` SET `fecha_saldo` = ? WHERE sim = ?
+**CRITICAL UPDATE FIELDS (ALWAYS END OF DAY):**
+- **GPS**: UPDATE `dispositivos` SET `unix_saldo` = moment().add(7, 'days').endOf('day').unix() WHERE sim = ?
+- **VOZ**: UPDATE `prepagos_automaticos` SET `fecha_expira_saldo` = moment().add(dias_paquete, 'days').endOf('day').unix() WHERE sim = ?
+- **ELIoT**: UPDATE `agentes` SET `fecha_saldo` = moment().add(record.dias_recarga, 'days').endOf('day').unix() WHERE sim = ?
+
+**⚠️ CRÍTICO - FECHAS AL FINAL DEL DÍA:**
+Todas las fechas de expiración DEBEN establecerse al final del día (23:59:59) usando `.endOf('day')` para dar el día completo de servicio.
 
 **Performance Optimizations (FASE 4):**
 - Connection pooling: 20 max connections (up from 10)
@@ -177,7 +183,7 @@ VOZ_MINUTOS_SIN_REPORTAR=60      # Only if VOZ_SCHEDULE_MODE=interval
 ```
 data/
 ├── gps_auxiliary_queue.json      # GPS recovery queue
-├── voz_auxiliary_queue.json      # VOZ recovery queue  
+├── voz_auxiliary_queue.json      # VOZ recovery queue
 └── eliot_auxiliary_queue.json    # ELIoT recovery queue
 ```
 
@@ -186,6 +192,133 @@ data/
 - Service isolation: GPS failures don't block VOZ/ELIoT
 - Intelligent retry with error categorization
 - Auto-recovery on next scheduled execution
+
+## 🔒 PARANOID-SAFE AUXILIARY QUEUE FLOW (CRITICAL)
+
+### ⚠️ FINANCIAL SAFETY WARNING
+**NEVER MODIFY THE BLOCKING BEHAVIOR - IT PREVENTS FINANCIAL LOSS**
+
+The auxiliary queue system implements a **paranoid-safe flow** to prevent loss of money from webservice calls. This is NOT a bug - it's an INTENTIONAL FEATURE that prevents double charging and data loss.
+
+### The Financial Risk Scenario
+```
+EXAMPLE: 500 GPS recharges = $5,000 investment
+- System calls TAECEL webservice 500 times ✅
+- Provider charges $5,000 from account ✅
+- During BD insertion: pm2 kill/restart ❌
+- Result: $5,000 lost, no DB records, no way to recover
+```
+
+### The Paranoid-Safe Solution
+
+**Auxiliary Queue as Write-Ahead Log (WAL):**
+- Immediately save successful webservice responses to file-based queue
+- File persists through crashes, restarts, and system failures
+- Only remove from queue AFTER confirmed DB insertion
+- If crash occurs, queue items are recovered on next execution
+
+### 🛡️ CRITICAL FLOW SEQUENCE
+
+All three services (GPS, VOZ, ELIoT) follow this exact paranoid flow:
+
+#### **Step 1: BLOCKING CHECK**
+```javascript
+const pendingItems = await this.checkPendingItems();
+if (pendingItems.length > 0) {
+    console.warn(`⚠️ [SERVICE] BLOQUEO: ${pendingItems.length} recargas pendientes`);
+    // BLOCK new webservice calls - process pending first
+}
+```
+
+#### **Step 2: MANDATORY QUEUE PROCESSING**
+```javascript
+const resolvedStats = await this.processAuxiliaryQueueRecharges();
+if (resolvedStats.processed < pendingItems.length) {
+    // ABORT new recharges - queue not fully processed
+    console.error(`❌ [SERVICE]: No se pudieron resolver todos los pendientes`);
+    return stats; // TERMINATE - DO NOT proceed to webservices
+}
+```
+
+#### **Step 3: WEBSERVICE WITH IMMEDIATE PERSISTENCE**
+```javascript
+const rechargeResult = await WebserviceClient.executeRecharge(provider, sim, codigo);
+if (rechargeResult.success) {
+    // CRITICAL: Save IMMEDIATELY to auxiliary queue
+    const auxItem = {
+        id: `aux_${Date.now()}_${Math.random()}`,
+        sim: record.sim,
+        transID: rechargeResult.transID,
+        // ... complete transaction data
+    };
+    await this.persistenceQueue.addToAuxiliaryQueue(auxItem, 'service');
+}
+```
+
+#### **Step 4: EVENTUAL DB INSERTION**
+```javascript
+// Later, system attempts to insert into database
+// If successful: remove from auxiliary queue
+// If fails: item remains in queue for next cycle
+```
+
+### 🔐 BLOCKING POLICY (INTENTIONAL)
+
+**RULE: NO new webservice calls if auxiliary queue has ANY pending items**
+
+**Why this blocking is CRITICAL:**
+1. **Prevents Double Charging**: Won't charge provider twice for same device
+2. **Ensures DB Integrity**: All webservice calls must be in DB before new ones
+3. **Paranoid Recovery**: Every successful call is preserved through crashes
+4. **Financial Protection**: Never lose money from provider calls
+
+### 📋 SERVICE-SPECIFIC IMPLEMENTATION
+
+#### **GPS Service Compliance:**
+- Blocks at Step 7.0 verification in `processRecords()`
+- Uses batch approach for auxiliary queue management
+- Returns early if queue not empty after processing attempts
+
+#### **VOZ Service Compliance:**
+- Blocks immediately in `processRecords()` start
+- Immediate save to auxiliary queue after webservice success
+- Uses `persistenceQueue.addToAuxiliaryQueue(auxItem, 'voz')`
+
+#### **ELIoT Service Compliance:**
+- Blocks immediately in `processRecords()` start
+- Immediate save to auxiliary queue after webservice success
+- Uses `persistenceQueue.addToAuxiliaryQueue(auxItem, 'eliot')`
+
+### 🏷️ RECOVERY IDENTIFICATION
+
+**Recovery Prefix System:**
+- GPS: `< RECUPERACIÓN GPS > [nota de recarga]`
+- VOZ: `< RECUPERACIÓN VOZ > [nota de recarga]`
+- ELIoT: `< RECUPERACIÓN ELIOT > [nota de recarga]`
+
+This allows clear identification of recovered vs new recharges in database records.
+
+### ⚡ PERFORMANCE CHARACTERISTICS
+
+**File-Based Persistence:**
+- JSON files in `data/` directory
+- Atomic write operations
+- Service isolation (independent queues)
+- Survives pm2 restarts, system crashes, power failures
+
+**Memory Safety:**
+- Queues are immediately flushed to disk
+- No in-memory-only state that can be lost
+- Crash recovery guaranteed on next execution
+
+### 🚨 CRITICAL WARNINGS FOR DEVELOPERS
+
+1. **NEVER disable the auxiliary queue blocking logic**
+2. **NEVER "optimize" by skipping immediate queue persistence**
+3. **NEVER assume webservice success = DB success**
+4. **NEVER modify the file-based queue system without understanding financial implications**
+
+**The blocking is a FEATURE, not a bug. It saves money.**
 
 ### PM2 Integration (NEW)
 
@@ -1017,8 +1150,9 @@ CREATE TABLE `prepagos_automaticos` (
    - **Política Estricta**: Si existe CUALQUIER elemento en cola auxiliar, NO se consumen webservices
    - **Prevención de Doble Cobro**: Evita gastar saldo del proveedor en nuevas recargas hasta resolver pendientes
    - **Procesamiento SOLO Recovery**: Hasta que la cola esté completamente vacía
-   - **Prefijo "< RECUPERACIÓN GPS >"**: Identifica recargas procesadas desde cola auxiliar
+   - **Prefijo de Recuperación**: Identifica recargas procesadas desde cola auxiliar por servicio
    - **Logs de Bloqueo**: Se registra detalladamente el bloqueo y razones en logs estructurados
+   - **📖 Ver documentación completa**: Sección "🔒 PARANOID-SAFE AUXILIARY QUEUE FLOW" para detalles completos del flujo y arquitectura de seguridad financiera
 
 ## 🚀 OPTIMIZACIÓN GPS N+1 QUERIES - Septiembre 2025
 

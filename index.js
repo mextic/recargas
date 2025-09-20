@@ -24,7 +24,7 @@ class RechargeOrchestrator {
         this.lockManager = null;
         this.schedules = new Map();
         this.isInitialized = false;
-        
+
         // FASE 5: Servicios de monitoreo y alertas
         this.alertManager = null;
         this.healthCheckManager = null;
@@ -34,16 +34,16 @@ class RechargeOrchestrator {
     async initialize() {
         console.log('🚀 Iniciando Sistema de Recargas Optimizado v2.0');
         console.log('=================================================\n');
-        
+
         try {
             // 1. Inicializar bases de datos
             console.log('📊 Conectando bases de datos...');
             await initDatabases();
-            
+
             // Guardar referencia a bases de datos en la clase
             this.dbGps = dbGps;
             this.dbEliot = dbEliot;
-            
+
             // 2. Inicializar sistema de persistencia
             console.log('💾 Inicializando sistema de persistencia...');
             // Cada servicio necesita su propia instancia de persistencia
@@ -52,23 +52,23 @@ class RechargeOrchestrator {
                 enableAutoRecovery: true,
                 maxRetries: 3
             });
-            
+
             this.vozQueue = new PersistenceQueueSystem({
                 serviceType: 'voz',
                 enableAutoRecovery: true,
                 maxRetries: 3
             });
-            
+
             this.eliotQueue = new PersistenceQueueSystem({
                 serviceType: 'eliot',
                 enableAutoRecovery: true,
                 maxRetries: 3
             });
-            
+
             await this.gpsQueue.initialize();
             await this.vozQueue.initialize();
             await this.eliotQueue.initialize();
-            
+
             // 3. Inicializar lock manager
             console.log('🔒 Inicializando gestor de locks...');
             this.lockManager = new OptimizedLockManager({
@@ -76,7 +76,7 @@ class RechargeOrchestrator {
                 getRedisClient: getRedisClient
             });
             this.lockManager.setDbConnection(dbGps);
-            
+
             // 4. Inicializar servicios de monitoreo (FASE 5)
             console.log('📊 Inicializando servicios de monitoreo...');
             try {
@@ -105,8 +105,8 @@ class RechargeOrchestrator {
             console.log('⚙️ Inicializando procesadores...');
             this.processors.GPS = new GPSRechargeProcessor(dbGps, this.lockManager, this.gpsQueue, this.alertManager, this.slaMonitor);
             this.processors.VOZ = new VozRechargeProcessor(dbGps, this.lockManager, this.vozQueue, this.alertManager, this.slaMonitor);
-            this.processors.ELIOT = new ELIoTRechargeProcessor({GPS_DB: dbGps, ELIOT_DB: dbEliot}, this.lockManager, this.eliotQueue, this.alertManager, this.slaMonitor);
-            
+            this.processors.ELIOT = new ELIoTRechargeProcessor({ GPS_DB: dbGps, ELIOT_DB: dbEliot }, this.lockManager, this.eliotQueue, this.alertManager, this.slaMonitor);
+
             // 6. Iniciar health checks
             if (this.healthCheckManager) {
                 console.log('🏥 Iniciando health checks automáticos...');
@@ -118,36 +118,20 @@ class RechargeOrchestrator {
             const gpsStats = await this.gpsQueue.getQueueStats();
             const vozStats = await this.vozQueue.getQueueStats();
             const eliotStats = await this.eliotQueue.getQueueStats();
-            
+
             const totalPending = gpsStats.auxiliaryQueue.pendingDb + vozStats.auxiliaryQueue.pendingDb + eliotStats.auxiliaryQueue.pendingDb;
-            
+
             if (totalPending > 0) {
                 console.log(`⚠️ Detectadas ${totalPending} recargas pendientes (GPS: ${gpsStats.auxiliaryQueue.pendingDb}, VOZ: ${vozStats.auxiliaryQueue.pendingDb}, ELIOT: ${eliotStats.auxiliaryQueue.pendingDb})`);
                 await this.processPendingQueues();
             }
-            
+
             // 8. Configurar schedules
             this.setupSchedules();
-            
-            // 7. TESTING: Ejecutar servicios inmediatamente para debugging (solo en desarrollo)
-            if (process.env.NODE_ENV === 'development' && process.env.TEST_VOZ === 'true') {
-                console.log('\n🧪 TESTING: Ejecutando VOZ inmediatamente...');
-                setTimeout(() => {
-                    this.runProcess('VOZ').catch(error => {
-                        console.error('❌ Error en test VOZ:', error);
-                    });
-                }, 2000); // 2 segundos después de inicializar
-            }
-            
-            if (process.env.TEST_ELIOT === 'true') {
-                console.log('\n🧪 TESTING: Ejecutando ELIoT inmediatamente...');
-                setTimeout(() => {
-                    this.runProcess('ELIOT').catch(error => {
-                        console.error('❌ Error en test ELIoT:', error);
-                    });
-                }, 3000); // 3 segundos después de inicializar (para no interferir con VOZ)
-            }
-            
+
+            // 7. TESTING: Los servicios en test mode usan flujo normal transparente
+            // (eliminado setTimeout duplicado que causaba conflictos de lock)
+
             this.isInitialized = true;
             console.log('\n✅ Sistema inicializado correctamente');
 
@@ -165,7 +149,7 @@ class RechargeOrchestrator {
 
             // Programar servicios de test si están configurados
             await this.scheduleTestServices();
-            
+
         } catch (error) {
             console.error('❌ Error durante inicialización:', error);
             throw error;
@@ -174,75 +158,75 @@ class RechargeOrchestrator {
 
     setupSchedules() {
         console.log('📅 Configurando tareas programadas...');
-        
+
         // GPS - Intervalo configurable basado en GPS_MINUTOS_SIN_REPORTAR
         const gpsInterval = parseInt(process.env.GPS_MINUTOS_SIN_REPORTAR) || 14;
         console.log(`   🔄 GPS verificará cada ${gpsInterval} minutos (GPS_MINUTOS_SIN_REPORTAR=${gpsInterval})`);
-        
+
         const gpsRule = new schedule.RecurrenceRule();
         gpsRule.minute = new schedule.Range(0, 59, gpsInterval);
         gpsRule.tz = "America/Mazatlan";
-        
+
         this.schedules.set('GPS', schedule.scheduleJob(gpsRule, async () => {
             console.log(`\n⏰ [SCHEDULER] GPS ejecutándose automáticamente - ${new Date().toLocaleString()}`);
             console.log(`   📍 Próxima ejecución: ${gpsRule.nextInvocationDate(new Date()).toLocaleString()}`);
             await this.runProcess('GPS');
         }));
-        
+
         // VOZ - Configurable con variable de entorno o horarios fijos por defecto
         const vozMode = process.env.VOZ_SCHEDULE_MODE || 'fixed'; // 'fixed' o 'interval'
         const vozInterval = parseInt(process.env.VOZ_MINUTOS_SIN_REPORTAR) || null;
-        
+
         if (vozMode === 'interval' && vozInterval) {
             // Modo intervalo: cada N minutos (como GPS)
             console.log(`   📞 VOZ verificará cada ${vozInterval} minutos (VOZ_MINUTOS_SIN_REPORTAR=${vozInterval})`);
-            
+
             const vozRule = new schedule.RecurrenceRule();
             vozRule.minute = new schedule.Range(0, 59, vozInterval);
             vozRule.tz = "America/Mazatlan";
-            
+
             this.schedules.set('VOZ', schedule.scheduleJob(vozRule, async () => {
                 await this.runProcess('VOZ');
             }));
         } else {
             // Modo fijo: 2 veces al día (comportamiento actual)
             console.log('   📞 VOZ verificará 2 veces al día: 1:00 AM y 4:00 AM');
-            
+
             // Primera ejecución: 1:00 AM
             const vozRule1 = new schedule.RecurrenceRule();
             vozRule1.hour = 1;
             vozRule1.minute = 0;
             vozRule1.tz = "America/Mazatlan";
-            
+
             this.schedules.set('VOZ-1', schedule.scheduleJob(vozRule1, async () => {
                 console.log('📞 Ejecutando VOZ - Primera verificación (1:00 AM)');
                 await this.runProcess('VOZ');
             }));
-            
+
             // Segunda ejecución: 4:00 AM (3 horas después)
             const vozRule2 = new schedule.RecurrenceRule();
             vozRule2.hour = 4;
             vozRule2.minute = 0;
             vozRule2.tz = "America/Mazatlan";
-            
+
             this.schedules.set('VOZ-2', schedule.scheduleJob(vozRule2, async () => {
                 console.log('📞 Ejecutando VOZ - Segunda verificación (4:00 AM)');
                 await this.runProcess('VOZ');
             }));
         }
-        
+
         // ELIOT - Intervalo configurable basado en ELIOT_MINUTOS_SIN_REPORTAR
         const eliotInterval = parseInt(process.env.ELIOT_MINUTOS_SIN_REPORTAR) || 10;
         console.log(`   🔄 ELIoT verificará cada ${eliotInterval} minutos (ELIOT_MINUTOS_SIN_REPORTAR=${eliotInterval})`);
-        
+
         const eliotRule = new schedule.RecurrenceRule();
         eliotRule.minute = new schedule.Range(0, 59, eliotInterval);
         eliotRule.tz = "America/Mazatlan";
-        
+
         this.schedules.set('ELIOT', schedule.scheduleJob(eliotRule, async () => {
             await this.runProcess('ELIOT');
         }));
-        
+
         console.log(`   • GPS: Cada ${gpsInterval} minutos`);
         console.log('   • VOZ: 2 veces al día (1:00 AM y 4:00 AM)');
         console.log(`   • ELIOT: Cada ${eliotInterval} minutos`);
@@ -253,48 +237,48 @@ class RechargeOrchestrator {
             console.log('⚠️ Sistema no inicializado');
             return;
         }
-        
+
         const processor = this.processors[type];
         if (!processor) {
             console.log(`❌ Procesador ${type} no encontrado`);
             return;
         }
-        
+
         const startTime = Date.now();
         const inicioMazatlan = moment.tz("America/Mazatlan").format('YYYY-MM-DD HH:mm:ss');
         console.log(`\n${'='.repeat(50)}`);
         console.log(`🚀 [${inicioMazatlan}] Iniciando proceso ${type} - Mazatlán`);
         console.log(`${'='.repeat(50)}`);
-        
+
         try {
             const result = await processor.process();
             const duration = ((Date.now() - startTime) / 1000).toFixed(2);
             const finMazatlan = moment.tz("America/Mazatlan").format('YYYY-MM-DD HH:mm:ss');
-            
+
             console.log(`\n✅ Proceso ${type} completado en ${duration}s`);
             console.log(`🏁 [${finMazatlan}] Proceso finalizado - Mazatlán`);
             console.log(`   • Procesados: ${result.processed}`);
             console.log(`   • Exitosos: ${result.success}`);
             console.log(`   • Fallidos: ${result.failed}`);
-            
+
             return result;
-            
+
         } catch (error) {
             console.error(`❌ Error en proceso ${type}:`, error.message);
-            
+
             // Guardar error en métricas
             await this.saveErrorMetric(type, error);
-            
+
             return { success: 0, failed: 1, error: error.message };
         }
     }
 
     async processPendingQueues() {
         console.log('📦 Procesando colas pendientes...');
-        
+
         let totalProcessed = 0;
         let totalFailed = 0;
-        
+
         // Procesar cola GPS
         const gpsStats = await this.gpsQueue.getQueueStats();
         if (gpsStats.auxiliaryQueue.pendingDb > 0) {
@@ -303,8 +287,8 @@ class RechargeOrchestrator {
             totalProcessed += gpsResult.processed;
             totalFailed += gpsResult.failed;
         }
-        
-        // Procesar cola VOZ  
+
+        // Procesar cola VOZ
         const vozStats = await this.vozQueue.getQueueStats();
         if (vozStats.auxiliaryQueue.pendingDb > 0) {
             console.log(`   📞 VOZ: ${vozStats.auxiliaryQueue.pendingDb} registros pendientes`);
@@ -312,14 +296,16 @@ class RechargeOrchestrator {
             totalProcessed += vozResult.processed;
             totalFailed += vozResult.failed;
         }
-        
+
         // Procesar cola ELIOT
         const eliotStats = await this.eliotQueue.getQueueStats();
         if (eliotStats.auxiliaryQueue.pendingDb > 0) {
             console.log(`   🤖 ELIOT: ${eliotStats.auxiliaryQueue.pendingDb} registros pendientes`);
-            // ELIOT necesitará su propio método de recovery (lo implementaremos después)
+            const eliotResult = await this.processors.ELIOT.processAuxiliaryQueueRecharges();
+            totalProcessed += eliotResult.processed;
+            totalFailed += eliotResult.failed;
         }
-        
+
         console.log(`   • Total procesados: ${totalProcessed}`);
         console.log(`   • Total fallidos: ${totalFailed}`);
         return { processed: totalProcessed, failed: totalFailed };
@@ -328,7 +314,7 @@ class RechargeOrchestrator {
     async saveErrorMetric(type, error) {
         try {
             const sql = `
-                INSERT INTO recargas_metricas 
+                INSERT INTO recargas_metricas
                 (process_type, start_time, end_time, records_failed, error_message)
                 VALUES (?, NOW(), NOW(), 1, ?)
             `;
@@ -393,36 +379,62 @@ class RechargeOrchestrator {
     }
 
     async scheduleTestServices() {
+        console.log('🧪 Verificando configuración de testing...');
+
+        // Servicios en modo test usando flujo normal transparente (sin setTimeout adicional)
         const testServices = [];
 
         if (process.env.TEST_GPS === 'true') {
-            testServices.push({ service: 'GPS', delay: 1000 });
+            testServices.push('GPS');
         }
 
         if (process.env.TEST_VOZ === 'true') {
-            testServices.push({ service: 'VOZ', delay: 2000 });
+            testServices.push('VOZ');
         }
 
         if (process.env.TEST_ELIOT === 'true') {
-            testServices.push({ service: 'ELIOT', delay: 3000 });
-        }
-
-        for (const test of testServices) {
-            setTimeout(() => {
-                console.log(`\n🧪 TESTING: Ejecutando ${test.service} inmediatamente...`);
-                this.runProcess(test.service).catch(error => {
-                    console.error(`❌ Error en test ${test.service}:`, error);
-                });
-            }, test.delay);
+            testServices.push('ELIOT');
         }
 
         if (testServices.length > 0) {
-            console.log(`🧪 TEST: Servicios programados: ${testServices.map(t => t.service).join(', ')}`);
-        }
+            console.log(`🧪 TEST: Servicios habilitados: ${testServices.join(', ')}`);
+            console.log(`🧪 TEST: Ejecutando inmediatamente en modo test`);
 
-        // Mostrar que GPS está en modo TEST pero usa flujo normal
-        if (process.env.TEST_GPS === 'true') {
-            console.log(`🧪 TEST: GPS habilitado - usando flujo normal transparente`);
+            // Ejecutar inmediatamente los servicios en modo test
+            if (process.env.TEST_GPS === 'true') {
+                console.log('🧪 TEST GPS: Ejecutando GPS inmediatamente...');
+                setTimeout(async () => {
+                    try {
+                        await this.runProcess('GPS');
+                    } catch (error) {
+                        console.error('❌ TEST GPS Error:', error.message);
+                    }
+                }, 2000); // 2 segundos de delay para que el sistema termine de inicializar
+            }
+
+            if (process.env.TEST_VOZ === 'true') {
+                console.log('🧪 TEST VOZ: Ejecutando VOZ inmediatamente...');
+                setTimeout(async () => {
+                    try {
+                        await this.runProcess('VOZ');
+                    } catch (error) {
+                        console.error('❌ TEST VOZ Error:', error.message);
+                    }
+                }, 3000);
+            }
+
+            if (process.env.TEST_ELIOT === 'true') {
+                console.log('🧪 TEST ELIOT: Ejecutando ELIoT inmediatamente...');
+                setTimeout(async () => {
+                    try {
+                        await this.runProcess('ELIOT');
+                    } catch (error) {
+                        console.error('❌ TEST ELIOT Error:', error.message);
+                    }
+                }, 4000);
+            }
+        } else {
+            console.log('🧪 TEST: Ningún servicio en modo test');
         }
     }
 

@@ -39,7 +39,7 @@ class GPSRechargeProcessor extends BaseRechargeProcessor {
     async getRecordsToProcess() {
         // Preservar contexto this para usar dentro de measureDatabaseQuery
         const self = this;
-
+        
         // Usar performance monitor para medir tiempo de consulta OPTIMIZADA
         return await performanceMonitor.measureDatabaseQuery(
             'gps_records_to_process_optimized',
@@ -398,112 +398,73 @@ class GPSRechargeProcessor extends BaseRechargeProcessor {
         });
 
         this.logger.info('GPS procesamiento iniciado con registros pre-filtrados', {
-            operation: 'gps_process_records_start',
+            operation: 'gps_process_records_start_v3',
             serviceType: 'GPS',
-            recordsReceived: records.length
+            recordsReceived: records.length,
+            flow: 'gps_with_filtered_records'
         });
 
         try {
-            // Procesar registros GPS con validación previa
-            const processResult = await this.insertBatchRechargesWithDuplicateHandling(records);
-            
-            return {
-                processed: processResult.processed || 0,
-                duplicatesSkipped: processResult.skipped || 0,
-                failed: processResult.failed || 0,
-                total: records.length
-            };
-        } catch (error) {
-            this.logger.error('Error en processRecords GPS', { error: error.message });
-            return {
-                processed: 0,
-                duplicatesSkipped: 0,
-                failed: records.length,
-                total: records.length
-            };
-    }
+            // PASO 1: Verificar y procesar cola auxiliar (OBLIGATORIO - paranoid-safe)
+            const pendingItems = await this.checkPendingItems();
 
-    /**
-     * Inserta registros GPS con manejo de duplicados
-     */
-    async insertBatchRechargesWithDuplicateHandling(recharges, isRecovery = false) {
-        if (!recharges || recharges.length === 0) {
-            return { processed: 0, skipped: 0, failed: 0 };
-        }
+            if (pendingItems.length > 0) {
+                console.warn(`⚠️ GPS: ${pendingItems.length} recargas pendientes en cola auxiliar`);
 
-        this.logger.info('Iniciando inserción GPS con validación previa', {
-            operation: 'gps_batch_insert_start',
-            count: recharges.length,
-            isRecovery
-        });
+                // Procesar cola auxiliar primero
+                const resolvedStats = await this.processAuxiliaryQueueRecharges();
 
-        let processed = 0;
-        let skipped = 0;
-        let failed = 0;
+                console.log(`📊 GPS: Procesamiento cola auxiliar:`, {
+                    processed: resolvedStats.processed || 0,
+                    duplicatesSkipped: resolvedStats.duplicatesSkipped || 0,
+                    pendingInQueue: resolvedStats.pendingInQueue || 0,
+                    errors: resolvedStats.failed || 0
+                });
 
-        // Procesar en lotes pequeños para validación individual
-        const batchSize = 50;
-        for (let i = 0; i < recharges.length; i += batchSize) {
-            const batch = recharges.slice(i, i + batchSize);
-            
-            for (const recharge of batch) {
-                try {
-                    // Validar antes de insertar
-                    const isDuplicate = await this.checkDuplicateExists(recharge);
-                    
-                    if (isDuplicate) {
-                        skipped++;
-                        continue;
-                    }
+                // PASO 7.0 CRÍTICO: Verificar si cola quedó vacía
+                const remainingItems = await this.checkPendingItems();
 
-                    await this.insertSingleRecharge(recharge);
-                    processed++;
-                } catch (error) {
-                    if (this.isDuplicateError(error)) {
-                        skipped++;
-                    } else {
-                        failed++;
-                        this.logger.error('Error insertando recarga GPS', {
-                            error: error.message,
-                            sim: recharge.sim
-                        });
-                    }
+                if (remainingItems.length > 0) {
+                    // Cola NO vacía - BLOQUEAR webservice
+                    console.error(`❌ GPS: ${remainingItems.length} items pendientes en cola auxiliar`);
+                    console.log('⛔ BLOQUEANDO consumo webservice hasta resolver cola auxiliar');
+
+                    this.logger.error('GPS bloqueado por cola auxiliar no vacía (paso 7.0)', {
+                        operation: 'gps_blocked_auxiliary_queue_step_7_0',
+                        pendingItems: remainingItems.length,
+                        processedInCycle: resolvedStats.processed || 0,
+                        flowStep: '7.0_verification_failed'
+                    });
+
+                    stats.blocked = true;
+                    stats.blockedReason = 'auxiliary_queue_not_empty_after_processing';
+                    stats.pendingItems = remainingItems.length;
+
+                    return stats; // TERMINAR AQUÍ - NO continuar a webservice
                 }
+
+                console.log('✅ GPS: Cola auxiliar completamente procesada y vacía (paso 7.0 OK)');
+
+                // Actualizar stats con lo procesado en auxiliary
+                stats.processed = resolvedStats.processed || 0;
+                stats.success = (resolvedStats.processed || 0) - (resolvedStats.failed || 0);
+                stats.failed = resolvedStats.failed || 0;
             }
-        }
 
-        this.logger.info('Inserción GPS completada', {
-            processed,
-            skipped,
-            failed,
-            total: recharges.length
-        });
+            // PASO 8: PROCESAR REGISTROS YA FILTRADOS (los que vienen del BaseRechargeProcessor)
+            if (!records || records.length === 0) {
+                this.logger.info('GPS sin registros filtrados para procesar', {
+                    operation: 'gps_no_filtered_records',
+                    serviceType: 'GPS'
+                });
+                return stats;
+            }
 
-        return { processed, skipped, failed };
-    }
+            console.log(`📡 GPS: Procesando ${records.length} registros filtrados vía webservice...`);
 
-    /**
-     * Verifica si un error es de duplicado (restricción UNIQUE violada)
-     */
-    isDuplicateError(error) {
-        return error.name === 'SequelizeUniqueConstraintError' ||
-            error.code === 'ER_DUP_ENTRY' ||
-            error.errno === 1062 ||
-            (error.message && (
-                error.message.includes('Duplicate entry') ||
-                error.message.includes('unique_sim_folio') ||
-                error.message.includes('UNIQUE constraint failed')
-            ));
-    }
-
-    // MÉTODO DE PRUEBA PARA DEBUGGING
-    testMethodDetection() {
-        console.log('🧪 GPS Test method is working!');
-        return true;
-    }
-}
-
-module.exports = { GPSRechargeProcessor };
+            this.logger.info('GPS iniciando procesamiento de webservice con registros filtrados', {
+                operation: 'gps_starting_webservice_with_filtered_records',
+                recordCount: records.length,
                 serviceType: 'GPS'
             });
 
@@ -678,7 +639,7 @@ module.exports = { GPSRechargeProcessor };
                 }
             }
 
-            // PASO 13: PROCESAR INMEDIATAMENTE LAS RECARGAS EXITOSAS
+                // PASO 13: PROCESAR INMEDIATAMENTE LAS RECARGAS EXITOSAS
             if (stats.success > 0) {
                 console.log(`📦 GPS: Procesando ${stats.success} recargas exitosas para inserción en BD...`);
 
@@ -721,395 +682,206 @@ module.exports = { GPSRechargeProcessor };
         return stats;
     }
 
-    // ===== MÉTODO ESPECIALIZADO PARA MANEJO DE DUPLICADOS =====
-    async insertBatchRechargesWithDuplicateHandling(recharges, isRecovery = false) {
-        let transaction = null;
-        const inserted = [];
-        const duplicates = [];
-        const errors = [];
-
-        this.logger.info('Iniciando inserción batch GPS con manejo de duplicados', {
-            operation: 'gps_batch_insert_with_duplicate_handling',
-            serviceType: 'GPS',
-            totalRecargas: recharges.length,
-            isRecovery: isRecovery
-        });
-
-        try {
-            // ✅ PASO 1: VALIDACIÓN PREVIA DE DUPLICADOS (ANTES DE CREAR MAESTRO)
-            this.logger.info('Ejecutando validación previa de duplicados', {
-                operation: 'pre_duplicate_validation',
-                serviceType: 'GPS',
-                batchSize: recharges.length
-            });
-
-            for (let i = 0; i < recharges.length; i++) {
-                const recharge = recharges[i];
-                const folio = recharge.webserviceResponse?.folio || '';
-
-                if (folio) {
-                    // Consulta SIN transacción para validación previa
-                    const existingRecord = await this.db.querySequelize(
-                        `SELECT id_recarga FROM detalle_recargas WHERE folio = ? LIMIT 1`,
-                        {
-                            replacements: [folio],
-                            type: this.db.getSequelizeClient().QueryTypes.SELECT
-                        }
-                    );
-
-                    if (existingRecord && existingRecord.length > 0) {
-                        // Folio ya existe - marcar como duplicado
-                        recharge.insertionStatus = 'duplicate';
-                        recharge.duplicateReason = `Folio ${folio} ya existe en BD`;
-                        recharge.id = `gps_${recharge.sim}_${Date.now()}`;
-                        duplicates.push(recharge);
-
-                        this.logger.info(`Folio duplicado detectado - ya procesado anteriormente`, {
-                            operation: 'detalle_duplicate_precheck',
-                            sim: recharge.sim,
-                            folio: folio,
-                            message: 'Tratando como exitoso - ya está en BD'
-                        });
-                    }
-                }
-            }
-
-            // ✅ CASO ESPECIAL: Si TODOS son duplicados, NO crear registro maestro
-            const newInsertions = recharges.filter(r => !r.insertionStatus);
-            if (newInsertions.length === 0) {
-                this.logger.info('Todos los elementos son duplicados - No se crea registro maestro', {
-                    operation: 'all_duplicates_scenario',
-                    serviceType: 'GPS',
-                    totalDuplicates: duplicates.length,
-                    totalRecargas: recharges.length
-                });
-
-                // Retornar resultados sin crear maestro ni transacción
-                return {
-                    inserted: [],
-                    duplicates: duplicates,
-                    errors: [],
-                    idRecarga: null,
-                    masterNote: 'No se requiere registro maestro - Todos los elementos son duplicados'
-                };
-            }
-
-            // ✅ PASO 2: PROCESAR SOLO ELEMENTOS NUEVOS (crear maestro + detalles)
-            transaction = await this.db.getSequelizeClient().transaction();
-
-            const fecha = Math.floor(Date.now() / 1000);
-            const totalRecargas = newInsertions.length; // Solo elementos nuevos
-            const totalImporte = newInsertions.reduce((sum, r) => sum + (r.importe || this.config.IMPORTE), 0);
-
-            // Preparar analytics solo para elementos nuevos
-            const firstRecharge = newInsertions[0];
-            const noteData = firstRecharge.noteData || {};
-            const ahorroReportando = noteData.reportandoEnTiempo || 0;
-            const totalRecords = noteData.totalRecords || totalRecargas;
-
-            const filterResults = {
-                ahorroReportando: Array(ahorroReportando).fill({}),
-                vencidos: Math.floor(totalRecords * 0.8),
-                porVencer: Math.floor(totalRecords * 0.2),
-                totalEvaluados: totalRecords
-            };
-            const processStats = {
-                processed: totalRecargas,
-                success: totalRecargas,
-                failed: 0
-            };
-
-            const analyticsData = this.prepareAnalyticsData(filterResults, processStats, totalRecords);
-            let masterNote = this.generateOptimizedMasterNote(analyticsData);
-
-            if (isRecovery) {
-                masterNote = `< RECUPERACIÓN GPS > ${masterNote}`;
-                this.logger.info('Aplicando prefijo de recuperación a nota maestra', {
-                    operation: 'recovery_prefix_applied',
-                    serviceType: 'GPS',
-                    batchSize: totalRecargas
+    /**
+                    ejemplos: ahorroReportando.slice(0, 3).map(d => ({
+                        sim: d.sim,
+                        vehiculo: d.descripcion,
+                        minutosSinReportar: d.minutos_sin_reportar,
+                        diasSinReportar: d.dias_sin_reportar,
+                        estadoSaldo: parseInt(d.unix_saldo) < Math.floor(Date.now() / 1000) ? 'VENCIDO' : 'POR_VENCER'
+                    }))
                 });
             }
 
-            const resumen = {
-                error: 0,
-                success: totalRecargas,
-                refund: 0
-            };
-
-            // CREAR REGISTRO MAESTRO solo para elementos nuevos
-            const [idRecarga] = await this.db.querySequelize(
-                `INSERT INTO recargas (total, fecha, notas, quien, proveedor, tipo, resumen)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                {
-                    replacements: [
-                        totalImporte,
-                        fecha,
-                        masterNote,
-                        'mextic.app',
-                        recharges[0]?.provider || 'TAECEL',
-                        'rastreo',
-                        JSON.stringify(resumen)
-                    ],
-                    type: this.db.getSequelizeClient().QueryTypes.INSERT,
-                    transaction
-                }
+            // Crear barra de progreso ajustada
+            const progressBar = ProgressFactory.createServiceProgressBar(
+                'GPS',
+                Math.max(totalEvaluados, 1),
+                `Evaluados: ${totalEvaluados} | Recargar: ${paraRecargar.length} | Ahorro: ${ahorroReportando.length}`
             );
 
-            this.logger.info('Registro maestro GPS insertado', {
-                operation: 'master_record_inserted',
-                serviceType: 'GPS',
-                idRecarga: idRecarga,
-                batchSize: totalRecargas
-            });
+            if (totalEvaluados === 0) {
+                progressBar.update(1, 'Sin dispositivos para evaluar - Sistema saludable');
+                progressBar.complete('✅ Análisis completado - Todos los dispositivos están saludables');
 
-            // Guardar analytics
-            try {
-                await this.saveGPSAnalytics(idRecarga, analyticsData, transaction);
-            } catch (analyticsError) {
-                this.logger.error('Error guardando analytics GPS', analyticsError, {
-                    operation: 'save_gps_analytics_error',
+                this.logger.info('Sin dispositivos GPS para evaluar', {
+                    operation: 'no_records_to_evaluate',
                     serviceType: 'GPS',
-                    idRecarga: idRecarga
+                    possibleCauses: [
+                        'Todos los dispositivos ya tienen recarga del día',
+                        'No hay dispositivos con saldo vencido o por vencer',
+                        'Filtros de exclusión eliminaron todos los registros',
+                        `Dispositivos no cumplen límite de días sin reportar (${this.config.DIAS_SIN_REPORTAR_LIMITE} días)`
+                    ]
                 });
+                return stats;
             }
 
-            // ✅ PASO 3: INSERTAR SOLO ELEMENTOS NUEVOS
-            this.logger.info('Iniciando inserción de detalles nuevos', {
-                operation: 'inserting_new_detalle_recargas',
+            // ACTUALIZADO: Usar datos del filtrado post-query
+            const registrosArecargar = paraRecargar; // Solo los que necesitan recarga
+            const registrosVencenFinDiaReportando = ahorroReportando; // Los que son ahorro
+
+            // Estadísticas mejoradas con filtrado post-query
+            this.logger.info('Estadísticas GPS con filtrado post-query', {
+                operation: 'gps_statistics_post_filter',
                 serviceType: 'GPS',
-                newInsertions: newInsertions.length,
-                totalDuplicates: duplicates.length,
-                idRecarga: idRecarga
+                stats: {
+                    totalEvaluados: totalEvaluados,
+                    vencidos: vencidos,
+                    porVencer: porVencer,
+                    paraRecargar: paraRecargar.length,
+                    ahorroReal: ahorroReportando.length,
+                    umbralMinutos: this.config.MINUTOS_SIN_REPORTAR_PARA_RECARGA,
+                    algoritmoVersion: 'v2.3_post_filter'
+                }
             });
 
-            for (let i = 0; i < newInsertions.length; i++) {
-                const recharge = newInsertions[i];
+            // Estadísticas para evaluación
+            const totalDispositivos = totalEvaluados;
+            const porcentajeRecargar = 100; // Todos los registros ya vienen filtrados para recargar
+            const porcentajePendientes = 0; // Ya no aplica
+            const porcentajeEnTiempo = 0; // Ya no aplica
+
+            this.logger.info('Indicadores de algoritmo GPS', {
+                operation: 'gps_algorithm_indicators',
+                serviceType: 'GPS',
+                indicators: {
+                    eficienciaRecarga: `${porcentajeRecargar}%`,
+                    dispositivosEnGracia: `${porcentajePendientes}%`,
+                    dispositivosEstables: `${porcentajeEnTiempo}%`
+                }
+            });
+
+            // Análisis simplificado para query optimizada
+            if (totalDispositivos > 0) {
+                // console.log(`📊 ANÁLISIS GPS OPTIMIZADO:`);
+                // console.log(`   • Dispositivos filtrados por query: ${totalDispositivos}`);
+                // console.log(`   • Listos para recargar: ${registrosArecargar.length} (100%)`);
+                // console.log(`   • Umbral aplicado: ≥${this.config.MINUTOS_SIN_REPORTAR_PARA_RECARGA} minutos sin reportar`);
+                // console.log(`   • Validación anti-duplicados: últimos 6 días`);
+
+                // Análisis de distribución simplificado usando datos ya calculados en query
+                if (records.length > 0) {
+                    const minutosPromedio = records.reduce((sum, r) => sum + parseFloat(r.minutos_sin_reportar || 0), 0) / records.length;
+                    const diasPromedio = records.reduce((sum, r) => sum + parseFloat(r.dias_sin_reportar || 0), 0) / records.length;
+
+                    console.log(`   • Promedio minutos sin reportar: ${minutosPromedio.toFixed(1)} min`);
+                    console.log(`   • Promedio días sin reportar: ${diasPromedio.toFixed(1)} días`);
+                }
+
+                const ahora = moment.tz("America/Mazatlan");
+                // console.log(`   • Optimización: Query unificada (N+1 → 1 query)`);
+                // console.log(`   • Hora actual: ${ahora.format('HH:mm')} (Mazatlán)`);
+            }
+
+            if (registrosArecargar.length === 0) {
+                if (totalDispositivos > 0) {
+                    this.logger.info('Todos los dispositivos GPS en buen estado', {
+                        operation: 'all_devices_healthy',
+                        serviceType: 'GPS',
+                        totalDispositivos
+                    });
+                }
+                return stats;
+            }
+
+            // Actualizar barra de progreso con datos de filtrado
+            progressBar.total = registrosArecargar.length;
+            progressBar.update(0, `Procesando ${registrosArecargar.length} dispositivos filtrados`);
+
+            if (progressBar.updateThreshold) {
+                progressBar.updateThreshold = 200; // Actualizar máximo cada 200ms para menor overhead
+            }
+
+            // Obtener proveedores ordenados por saldo
+            const providers = await this.getProvidersOrderedByBalance();
+            let provider = providers[0]; // Cambio a let para poder modificar en alternate provider
+
+            this.logger.info('Proveedor GPS seleccionado', {
+                operation: 'provider_selected',
+                serviceType: 'GPS',
+                provider: provider.name,
+                balance: provider.balance
+            });
+
+            progressBar.update(0, `Usando proveedor: ${provider.name} (Saldo: $${provider.balance})`);
+
+            if (provider.balance < this.config.IMPORTE) {
+                this.logger.error('Saldo insuficiente en proveedor GPS', {
+                    operation: 'insufficient_balance',
+                    serviceType: 'GPS',
+                    provider: provider.name,
+                    currentBalance: provider.balance,
+                    requiredAmount: this.config.IMPORTE
+                });
+                progressBar.fail(`Saldo insuficiente: $${provider.balance} < $${this.config.IMPORTE}`);
+                return stats;
+            }
+
+            // Procesar cada dispositivo
+            for (let i = 0; i < registrosArecargar.length; i++) {
+                const record = registrosArecargar[i];
+
+                this.logger.info('Procesando dispositivo GPS', {
+                    operation: 'process_device',
+                    serviceType: 'GPS',
+                    currentIndex: i + 1,
+                    totalCount: registrosArecargar.length,
+                    sim: record.sim,
+                    descripcion: record.descripcion
+                });
+
+                // Actualizar progreso con información detallada del vehículo y empresa
+                const vehicleInfo = record.descripcion || record.dispositivo || 'N/A';
+                const companyInfo = record.empresa || 'N/A';
+                const minutosInfo = record.minutos_sin_reportar ? ` - ${record.minutos_sin_reportar} min sin reportar` : '';
+                const progressMessage = `GPS - Procesando: ${vehicleInfo} [${companyInfo}]${minutosInfo}`;
+                progressBar.update(i, progressMessage);
+
+                // En modo TEST, mostrar también un log detallado
+                if (process.env.TEST_GPS === 'true') {
+                    // console.log(`     📱 ${i + 1}/${registrosArecargar.length} - ${record.sim} - ${vehicleInfo} [${companyInfo}]`);
+                }
 
                 try {
-                    const webserviceData = recharge.webserviceResponse || {};
-                    const saldoFinal = webserviceData.saldoFinal || '$0.00';
-                    const folio = webserviceData.folio || '';
-                    const telefono = recharge.sim;
-                    const carrier = 'Telcel';
-                    const fechaRecarga = moment.tz("America/Mazatlan").format('YYYY-MM-DD HH:mm:ss');
-                    const transID = recharge.transId || webserviceData.transId || '';
-                    const timeout = webserviceData.response?.timeout || webserviceData.timeout || '0.00';
-                    const ip = webserviceData.response?.ip || webserviceData.ip || '0.0.0.0';
-                    const minutosSinReportar = recharge.record?.minutos_sin_reportar || 'N/A';
-
-                    const detalleText = `[ Saldo Final: ${saldoFinal} ] Folio: ${folio}, Cantidad: $${recharge.importe || this.config.IMPORTE}, Teléfono: ${telefono}, Carrier: ${carrier}, Fecha: ${fechaRecarga}, TransID: ${transID}, Timeout: ${timeout}, IP: ${ip}, Sin Reportar: ${minutosSinReportar} min`;
-
-                    // Insertar detalle
-                    await this.db.querySequelize(
-                        `INSERT INTO detalle_recargas (id_recarga, sim, importe, dispositivo, vehiculo, detalle, folio, status)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    // Usar WebserviceClient centralizado con error handling inteligente
+                    const rechargeResult = await this.executeWithRetry(
+                        async () => await WebserviceClient.executeRecharge(provider, record.sim, this.config.CODIGO),
                         {
-                            replacements: [
-                                idRecarga,
-                                recharge.sim,
-                                recharge.importe || this.config.IMPORTE,
-                                recharge.record.dispositivo || '',
-                                `${recharge.record.descripcion} [${recharge.record.empresa}]`,
-                                detalleText,
-                                folio || transID || null,
-                                1
-                            ],
-                            type: this.db.getSequelizeClient().QueryTypes.INSERT,
-                            transaction
+                            operationName: 'gps_webservice_recharge',
+                            transactionId: `gps_${record.sim}_${Date.now()}`,
+                            sim: record.sim,
+                            alternateProviderCallback: async (attempt) => {
+                                // Cambiar a siguiente proveedor si está disponible
+                                if (attempt > 2 && providers.length > 1) {
+                                    const alternateProvider = providers[1];
+                                    this.logger.info('Cambiando a proveedor alternativo para GPS', {
+                                        operation: 'switch_provider',
+                                        from: provider.name,
+                                        to: alternateProvider.name,
+                                        sim: record.sim
+                                    });
+                                    provider = alternateProvider;
+                                }
+                            }
                         }
                     );
 
-                    // Actualizar unix_saldo en dispositivos
-                    const nuevaFechaExpiracion = moment.tz("America/Mazatlan").add(this.config.DIAS, 'days').endOf('day').unix();
-                    await this.db.querySequelize(
-                        `UPDATE dispositivos SET unix_saldo = ? WHERE sim = ?`,
-                        {
-                            replacements: [nuevaFechaExpiracion, recharge.sim],
-                            type: this.db.getSequelizeClient().QueryTypes.UPDATE,
-                            transaction
-                        }
-                    );
-
-                    // Marcar como insertado exitosamente
-                    recharge.insertionStatus = 'inserted';
-                    recharge.id = `gps_${recharge.sim}_${Date.now()}`;
-                    inserted.push(recharge);
-
-                    this.logger.info(`Detalle GPS insertado exitosamente`, {
-                        operation: 'detalle_inserted_success',
-                        sim: recharge.sim,
-                        folio: folio,
-                        idRecarga: idRecarga
-                    });
-
-                } catch (insertError) {
-                    // Verificar si es error de duplicado por índice único
-                    if (this.isDuplicateError(insertError)) {
-                        // Error de duplicado por índice único
-                        recharge.insertionStatus = 'duplicate';
-                        recharge.duplicateReason = insertError.message;
-                        recharge.id = `gps_${recharge.sim}_${Date.now()}`;
-                        duplicates.push(recharge);
-
-                        this.logger.warn(`Duplicado GPS prevenido por índice único`, {
-                            operation: 'detalle_duplicate_detected',
-                            sim: recharge.sim,
-                            folio: recharge.webserviceResponse?.folio,
-                            error: insertError.message,
-                            isRecovery: isRecovery
-                        });
-
-                    } else {
-                        // Error real - abortar toda la transacción
-                        this.logger.error(`Error real insertando detalle GPS - Abortando transacción`, insertError, {
-                            operation: 'detalle_insertion_real_error',
-                            sim: recharge.sim,
-                            folio: recharge.webserviceResponse?.folio,
-                            idRecarga: idRecarga,
-                            batchPosition: i + 1,
-                            totalBatch: newInsertions.length
-                        });
-                        
-                        throw new Error(`Error insertando detalle ${i + 1}/${newInsertions.length} para SIM ${recharge.sim}: ${insertError.message}`);
-                    }
-                }
-            }
-
-            // VALIDACIÓN: Verificar que tenemos insertados + duplicados de índice = total nuevos
-            const processedNewCount = inserted.length + duplicates.filter(d => d.duplicateReason.includes('ER_DUP_ENTRY')).length;
-            const totalProcessedCount = inserted.length + duplicates.length; // Incluye duplicados previos
-
-            // Commit de la transacción
-            await transaction.commit();
-            transaction = null;
-
-            this.logger.info('Inserción batch GPS completada exitosamente', {
-                operation: 'gps_batch_insert_with_duplicates_completed',
-                serviceType: 'GPS',
-                totalRecargas: recharges.length,
-                newInsertions: newInsertions.length,
-                inserted: inserted.length,
-                duplicatesPreCheck: duplicates.filter(d => !d.duplicateReason.includes('ER_DUP_ENTRY')).length,
-                duplicatesIdx: duplicates.filter(d => d.duplicateReason.includes('ER_DUP_ENTRY')).length,
-                totalDuplicates: duplicates.length,
-                idRecarga: idRecarga
-            });
-
-            // Retornar resultados estructurados
-            return {
-                inserted: inserted,
-                duplicates: duplicates,
-                errors: errors,
-                idRecarga: idRecarga,
-                masterNote: masterNote
-            };
-
-        } catch (error) {
-            // Rollback en caso de error crítico
-            if (transaction) {
-                await transaction.rollback();
-            }
-
-            this.logger.error('Error insertando lote GPS con manejo de duplicados', {
-                error: error.message,
-                operation: 'gps_batch_insert_with_duplicates_error',
-                serviceType: 'GPS',
-                totalRecargas: recharges.length,
-                isRecovery: isRecovery
-            });
-
-            throw new Error(`Atomicidad violada GPS: ${error.message}`);
-        }
-    }
-
-    /**
-     * MÉTODO LEGACY: Mantener para compatibilidad con código existente en processRecords
-     * Filtra dispositivos entre los que necesitan recarga y los que son ahorro
-     * @param {Array} records - Registros obtenidos de la query (TODOS los vencidos/por vencer)
-     * @returns {Object} - Datos de filtrado con paraRecargar, ahorroReportando, métricas
-     */
-    filterDevicesForRecharge(records) {
-                    // Verificar si es error de duplicado por índice único
-                    if (this.isDuplicateError(insertError)) {
-                        // Error de duplicado = La recarga ya existe = Considerar como éxito preventivo
-                        recharge.insertionStatus = 'duplicate';
-                        recharge.duplicateReason = insertError.message;
-                        recharge.id = `gps_${recharge.sim}_${Date.now()}`;
-                        duplicates.push(recharge);
-
-                        this.logger.warn(`Duplicado GPS prevenido por índice único`, {
-                            operation: 'detalle_duplicate_detected',
-                            sim: recharge.sim,
-                            folio: recharge.webserviceResponse?.folio,
-                            error: insertError.message,
-                            isRecovery: isRecovery
-                        });
-
-                    } else {
-                        // Error real - abortar toda la transacción
-                        this.logger.error(`Error real insertando detalle GPS - Abortando transacción`, insertError, {
-                            operation: 'detalle_insertion_real_error',
-                            sim: recharge.sim,
-                            folio: recharge.webserviceResponse?.folio,
-                            idRecarga: idRecarga,
-                            batchPosition: i + 1,
-                            totalBatch: recharges.length
-                        });
-                        
-                        throw new Error(`Error insertando detalle ${i + 1}/${recharges.length} para SIM ${recharge.sim}: ${insertError.message}`);
-                    }
-                }
-            }
-
-            // VALIDACIÓN CRÍTICA: Verificar que tenemos insertados + duplicados = total
-            const processedCount = inserted.length + duplicates.length;
-            if (processedCount !== recharges.length) {
-                throw new Error(`Atomicidad violada: Procesados ${processedCount}/${recharges.length}. Faltan ${recharges.length - processedCount} registros.`);
-            }
-
-            // Commit solo si TODOS los registros fueron procesados exitosamente
-            await transaction.commit();
-            transaction = null;
-
-            this.logger.info('Inserción batch GPS completada exitosamente', {
-                operation: 'gps_batch_insert_with_duplicates_completed',
-                serviceType: 'GPS',
-                totalRecargas: rechargas.length,
-                inserted: inserted.length,
-                duplicates: duplicates.length,
-                errors: errors.length,
-                idRecarga: idRecarga
-            });
-
-            // Retornar resultados estructurados
-            return {
-                inserted: inserted,
-                duplicates: duplicates,
-                errors: errors,
-                idRecarga: idRecarga,
-                masterNote: masterNote
-            };
-
-        } catch (error) {
-            // Rollback en caso de error crítico
-            if (transaction) {
-                await transaction.rollback();
-            }
-
-            this.logger.error('Error insertando lote GPS con manejo de duplicados', {
-                error: error.message,
-                operation: 'gps_batch_insert_with_duplicates_error',
-                serviceType: 'GPS',
-                totalRecargas: recharges.length,
-                isRecovery: isRecovery
-            });
-
-            throw new Error(`Atomicidad violada GPS: ${error.message}`);
-        }
-    
-    /**
-     * MÉTODO LEGACY: Mantener para compatibilidad con código existente en processRecords
+                    if (rechargeResult.success) {
+                        // CRÍTICO: Guardar INMEDIATAMENTE en cola auxiliar para prevenir pérdida de datos
+                        let auxItem = null;
+                        try {
+                            auxItem = {
+                                id: `aux_${Date.now()}_${Math.random()}`,
+                                tipo: 'gps_recharge',
+                                sim: record.sim,
+                                transId: rechargeResult.transID,
+                                monto: this.config.IMPORTE,
+                                record: {
+                                    descripcion: record.descripcion,
+                                    empresa: record.empresa,
+                                    dispositivo: record.dispositivo,
+                                    sim: record.sim,
                                     minutos_sin_reportar: record.minutos_sin_reportar || 0,
                                     unix_saldo: record.unix_saldo  // NUEVO: preservar unix_saldo original
                                 },
